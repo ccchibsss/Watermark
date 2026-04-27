@@ -1,5 +1,8 @@
-streamlit
-pandas
-openpyxl
-pyarrow
-rich>=10.14.0
+# Базовая установка
+pip install streamlit streamlit-drawable-canvas opencv-python-headless pillow numpy scipy scikit-image
+
+# Для AI детекции (опционально, но рекомендую)
+pip install torch torchvision transformers
+
+# Запуск
+streamlit run ultimate_watermark_remover.py
