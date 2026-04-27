@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Mass Watermark Remover - Ultimate Edition
+Mass Watermark Remover - Ultimate Edition (FIXED)
 Поддерживает: 9 методов авто-детекции, AI, 2000+ фото, параллельная обработка
 """
 
@@ -496,6 +496,38 @@ def create_zip_from_folder(folder_path: Path, zip_path: Path) -> None:
             if file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
                 zf.write(file_path, file_path.name)
 
+def overlay_mask_on_image(image: np.ndarray, mask: np.ndarray, color: Tuple[int, int, int] = (255, 0, 0), alpha: float = 0.5) -> np.ndarray:
+    """Безопасное наложение маски на изображение"""
+    overlay = image.copy()
+    
+    # Приводим маску к нужному размеру
+    if mask.shape[:2] != overlay.shape[:2]:
+        mask_resized = cv2.resize(mask, (overlay.shape[1], overlay.shape[0]))
+    else:
+        mask_resized = mask
+    
+    # Создаем бинарную маску
+    mask_binary = (mask_resized > 0).astype(np.uint8)
+    
+    # Если изображение цветное
+    if len(overlay.shape) == 3:
+        # Создаем цветную маску
+        color_mask = np.zeros_like(overlay)
+        color_mask[:] = color
+        
+        # Применяем маску с прозрачностью
+        for c in range(3):
+            overlay[:, :, c] = np.where(
+                mask_binary == 1,
+                (1 - alpha) * overlay[:, :, c] + alpha * color_mask[:, :, c],
+                overlay[:, :, c]
+            )
+    else:
+        # Для черно-белых изображений
+        overlay = np.where(mask_binary == 1, 255, overlay)
+    
+    return overlay.astype(np.uint8)
+
 # ========== ЗАГОЛОВОК ==========
 st.markdown('<div class="main-header">🚀 Ultimate Watermark Remover Pro</div>', unsafe_allow_html=True)
 st.markdown('<div class="info-box">💡 9 методов авто-детекции + AI + параллельная обработка 2000+ фото</div>', unsafe_allow_html=True)
@@ -686,9 +718,8 @@ with tab2:
                             st.metric("Обнаружено пикселей", f"{np.sum(mask > 0):,}")
                         
                         with col_res2:
-                            # Наложение маски на исходное
-                            overlay = auto_np.copy()
-                            overlay[mask > 0] = [255, 0, 0]
+                            # Безопасное наложение маски
+                            overlay = overlay_mask_on_image(auto_np, mask, color=(255, 0, 0), alpha=0.5)
                             st.image(overlay, caption="Наложение маски", use_column_width=True)
                         
                         # Кнопка сохранения
@@ -872,8 +903,13 @@ with tab4:
                         # Обработка
                         def update_progress(current, total):
                             progress_bar.progress(current / total)
-                            status_text.text(f"🔄 Обработано: {current} из {total} ({current/total*100:.1f}%) | "
-                                           f"Скорость: ~{current/(time.time()-start_time):.1f} фото/сек")
+                            elapsed = time.time() - start_time
+                            if current > 0:
+                                speed = current / elapsed
+                                status_text.text(f"🔄 Обработано: {current} из {total} ({current/total*100:.1f}%) | "
+                                               f"Скорость: {speed:.2f} фото/сек | Осталось: {(total-current)/speed:.1f} сек")
+                            else:
+                                status_text.text(f"🔄 Обработано: {current} из {total} ({current/total*100:.1f}%)")
                         
                         results = batch_process_parallel(
                             image_paths=image_paths,
@@ -906,7 +942,10 @@ with tab4:
                         with col3:
                             st.metric("⏱️ Время", f"{elapsed/60:.1f} мин")
                         with col4:
-                            st.metric("⚡ Скорость", f"{success_count/elapsed:.2f} фото/сек")
+                            if elapsed > 0:
+                                st.metric("⚡ Скорость", f"{success_count/elapsed:.2f} фото/сек")
+                            else:
+                                st.metric("⚡ Скорость", "0 фото/сек")
                         
                         # Кнопка скачивания
                         with open(result_zip, "rb") as f:
@@ -924,7 +963,7 @@ with tab4:
 # ========== FOOTER ==========
 st.divider()
 st.caption("""
-    🚀 **Ultimate Watermark Remover Pro** | Версия 3.0
+    🚀 **Ultimate Watermark Remover Pro** | Версия 3.1 (Fixed)
     - 9+ методов авто-детекции водяных знаков
     - AI детекция через CLIPSeg
     - Параллельная обработка 2000+ фото
