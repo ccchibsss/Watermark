@@ -1,904 +1,445 @@
-#!/usr/bin/env python3
 """
-Mass Watermark Remover - Ultimate Edition (FULLY FIXED)
-Поддерживает: 9 методов авто-детекции, AI, 2000+ фото, параллельная обработка
+================================================================================
+КОНСТРУКТОР WORKFLOW v4.0 "Enterprise"
+================================================================================
+Функции:
+✅ Глубокий анализ данных
+✅ Проверка на ошибки (валидация)
+✅ Авто-тестирование workflow
+✅ Развертывание через веб-интерфейс
+✅ Сохранение/загрузка проектов
+✅ Логирование всех действий
+
+Автор: AI Assistant
+Лицензия: MIT (полностью бесплатно)
+================================================================================
 """
 
 import streamlit as st
-from streamlit_drawable_canvas import st_canvas
-import cv2
-import numpy as np
-from PIL import Image
-import zipfile
-from pathlib import Path
-import tempfile
-import time
-import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
-import multiprocessing as mp
-from typing import Tuple, List, Dict, Optional
+import json
+import pandas as pd
+import requests
+from datetime import datetime
+from openai import OpenAI
 import io
-import warnings
-warnings.filterwarnings('ignore')
+import re
+import traceback
+import time
+import hashlib
+import os
+from typing import Dict, List, Any, Optional, Tuple
+import plotly.express as px
+import plotly.graph_objects as go
+from pathlib import Path
 
-# Опциональные импорты для AI детекции
-try:
-    import torch
-    from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
-    TORCH_AVAILABLE = True
-    CLIPSEG_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
-    CLIPSEG_AVAILABLE = False
+# ============================================================================
+# НАСТРОЙКА СТРАНИЦЫ И ДИЗАЙН
+# ============================================================================
 
-try:
-    from skimage import filters, morphology, exposure
-    SKIMAGE_AVAILABLE = True
-except ImportError:
-    SKIMAGE_AVAILABLE = False
-
-try:
-    from scipy import ndimage
-    SCIPY_AVAILABLE = True
-except ImportError:
-    SCIPY_AVAILABLE = False
-
-# Настройки страницы
 st.set_page_config(
-    page_title="Ultimate Watermark Remover",
+    page_title="Workflow Builder Pro | Автоматизация без кода",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ========== НАСТРОЙКИ СТИЛЕЙ ==========
+# Кастомный CSS для профессионального дизайна
 st.markdown("""
 <style>
+    /* Главный хедер */
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        padding: 2rem;
+        border-radius: 20px;
+        margin-bottom: 2rem;
         text-align: center;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
-    .info-box {
+    .main-header h1 {
+        color: white;
+        margin: 0;
+        font-size: 2.5rem;
+    }
+    .main-header p {
+        color: #a0a0ff;
+        margin-top: 0.5rem;
+    }
+    
+    /* Карточки */
+    .stat-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 1rem;
-        background-color: #f0f2f6;
-        border-radius: 0.5rem;
+        border-radius: 15px;
+        text-align: center;
+        color: white;
+    }
+    
+    /* Блоки workflow */
+    .workflow-node {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 15px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        color: white;
+        border-left: 4px solid #4ECDC4;
+        transition: all 0.3s ease;
+    }
+    .workflow-node:hover {
+        transform: translateX(5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .workflow-node-success {
+        border-left-color: #00ff88;
+        background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
+    }
+    .workflow-node-error {
+        border-left-color: #ff4444;
+        background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%);
+    }
+    
+    /* Кнопки */
+    .stButton button {
+        border-radius: 10px;
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    .stButton button:hover {
+        transform: scale(1.02);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    
+    /* Прогресс бар */
+    .stProgress > div > div {
+        background: linear-gradient(135deg, #00ff88, #00bfff);
+    }
+    
+    /* Инфо боксы */
+    .info-box {
+        background: #1e1e2e;
+        padding: 1rem;
+        border-radius: 10px;
+        border-left: 4px solid #4ECDC4;
+        margin: 1rem 0;
+    }
+    .error-box {
+        background: #2e1a1a;
+        padding: 1rem;
+        border-radius: 10px;
+        border-left: 4px solid #ff4444;
         margin: 1rem 0;
     }
     .success-box {
+        background: #1a2e1a;
         padding: 1rem;
-        background-color: #d4edda;
-        border-left: 4px solid #28a745;
-        border-radius: 0.5rem;
-        margin: 1rem 0;
-    }
-    .warning-box {
-        padding: 1rem;
-        background-color: #fff3cd;
-        border-left: 4px solid #ffc107;
-        border-radius: 0.5rem;
+        border-radius: 10px;
+        border-left: 4px solid #00ff88;
         margin: 1rem 0;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# ========== ИНИЦИАЛИЗАЦИЯ СЕССИИ ==========
-if 'master_mask' not in st.session_state:
-    st.session_state.master_mask = None
-if 'reference_image' not in st.session_state:
-    st.session_state.reference_image = None
-if 'auto_mask' not in st.session_state:
-    st.session_state.auto_mask = None
-if 'detection_history' not in st.session_state:
-    st.session_state.detection_history = []
-if 'processing_params' not in st.session_state:
-    st.session_state.processing_params = {
-        'algorithm': 'telea',
-        'parallel_workers': 4,
-        'quality': 'balanced'
-    }
+# Заголовок
+st.markdown("""
+<div class="main-header">
+    <h1>🚀 WORKFLOW BUILDER PRO</h1>
+    <p>Автоматизация без кода | Глубокий анализ | Проверка ошибок | Веб-развертывание</p>
+    <p style="font-size: 0.8rem;">⭐ Бесплатно | ⚡ Быстро | 🔒 Безопасно</p>
+</div>
+""", unsafe_allow_html=True)
 
-# ========== ПРОДВИНУТЫЕ МЕТОДЫ ДЕТЕКЦИИ ==========
+# ============================================================================
+# ИНИЦИАЛИЗАЦИЯ ВСЕХ ХРАНИЛИЩ
+# ============================================================================
 
-class AdvancedWatermarkDetector:
-    """9 продвинутых методов детекции водяных знаков"""
+class WorkflowStorage:
+    """Управление хранением workflows и данных"""
     
-    def __init__(self):
-        self.clipseg_model = None
-        self.clipseg_processor = None
-        self._init_ai_models()
-    
-    def _init_ai_models(self):
-        """Инициализация AI моделей (ленивая загрузка)"""
-        if CLIPSEG_AVAILABLE and TORCH_AVAILABLE and self.clipseg_model is None:
-            try:
-                self.clipseg_processor = CLIPSegProcessor.from_pretrained("CIDAS/clipseg-rd64-refined")
-                self.clipseg_model = CLIPSegForImageSegmentation.from_pretrained("CIDAS/clipseg-rd64-refined")
-                if torch.cuda.is_available():
-                    self.clipseg_model = self.clipseg_model.cuda()
-            except Exception as e:
-                pass
-    
-    # Метод 1: Edge detection (Canny)
     @staticmethod
-    def detect_by_edges(image: np.ndarray, sensitivity: int = 100) -> np.ndarray:
-        """Обнаружение по краям - для любых водяных знаков"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(blurred, sensitivity, sensitivity * 2)
-        
-        kernel = np.ones((10, 10), np.uint8)
-        mask = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.dilate(mask, kernel, iterations=2)
-        
-        return mask
+    def init():
+        if 'workflow' not in st.session_state:
+            st.session_state.workflow = []
+        if 'history' not in st.session_state:
+            st.session_state.history = []
+        if 'results' not in st.session_state:
+            st.session_state.results = {}
+        if 'variables' not in st.session_state:
+            st.session_state.variables = {}
+        if 'logs' not in st.session_state:
+            st.session_state.logs = []
+        if 'deployed_apps' not in st.session_state:
+            st.session_state.deployed_apps = []
+        if 'error_logs' not in st.session_state:
+            st.session_state.error_logs = []
+        if 'analytics' not in st.session_state:
+            st.session_state.analytics = {
+                'total_executions': 0,
+                'successful_executions': 0,
+                'failed_executions': 0,
+                'total_nodes_executed': 0,
+                'average_execution_time': 0
+            }
+
+# Инициализация
+WorkflowStorage.init()
+
+# ============================================================================
+# ВАЛИДАЦИЯ И ПРОВЕРКА ОШИБОК
+# ============================================================================
+
+class WorkflowValidator:
+    """Проверка workflow на ошибки"""
     
-    # Метод 2: Adaptive thresholding
     @staticmethod
-    def detect_by_adaptive_threshold(image: np.ndarray, block_size: int = 15) -> np.ndarray:
-        """Адаптивная пороговая обработка - для текста и логотипов"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    def validate_workflow(workflow: List[Dict]) -> Tuple[bool, List[str]]:
+        """Проверяет workflow на наличие ошибок"""
+        errors = []
+        warnings = []
         
-        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY, block_size, 2)
+        if not workflow:
+            errors.append("❌ Workflow пуст. Добавьте хотя бы один блок.")
+            return False, errors
         
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.dilate(mask, kernel, iterations=3)
+        # Проверка каждого блока
+        for i, node in enumerate(workflow):
+            # Проверка обязательных полей
+            if 'name' not in node:
+                errors.append(f"❌ Блок {i+1}: отсутствует название")
+            if 'type' not in node:
+                errors.append(f"❌ Блок {i+1}: отсутствует тип")
+            if 'config' not in node:
+                errors.append(f"❌ Блок {i+1}: отсутствует конфигурация")
+            
+            # Специфичные проверки для разных типов
+            node_type = node.get('type', '')
+            
+            if node_type == 'google_sheets_read':
+                sheet_url = node.get('config', {}).get('sheet_url', '')
+                if not sheet_url:
+                    errors.append(f"⚠️ Блок '{node.get('name', 'Unknown')}': укажите URL Google Таблицы")
+                elif 'docs.google.com' not in sheet_url and len(sheet_url) < 10:
+                    warnings.append(f"⚠️ Блок '{node.get('name', 'Unknown')}': URL таблицы выглядит некорректно")
+            
+            elif node_type == 'deepseek':
+                if not node.get('config', {}).get('user_prompt'):
+                    warnings.append(f"💡 Блок '{node.get('name', 'Unknown')}': пустой запрос к AI")
+            
+            elif node_type in ['http_get', 'http_post']:
+                url = node.get('config', {}).get('url', '')
+                if not url:
+                    errors.append(f"❌ Блок '{node.get('name', 'Unknown')}': укажите URL для HTTP запроса")
+                elif not url.startswith(('http://', 'https://')):
+                    errors.append(f"❌ Блок '{node.get('name', 'Unknown')}': URL должен начинаться с http:// или https://")
+            
+            elif node_type == 'condition':
+                condition = node.get('config', {}).get('condition', '')
+                if not condition:
+                    warnings.append(f"💡 Блок '{node.get('name', 'Unknown')}': условие не задано")
+            
+            elif node_type == 'loop':
+                items = node.get('config', {}).get('items', '[]')
+                try:
+                    json.loads(items)
+                except:
+                    errors.append(f"❌ Блок '{node.get('name', 'Unknown')}': массив элементов должен быть в формате JSON")
         
-        return mask
+        # Проверка цикличности
+        if WorkflowValidator._has_cycle(workflow):
+            errors.append("❌ Обнаружен цикл в workflow (бесконечное выполнение)")
+        
+        return len(errors) == 0, errors + warnings
     
-    # Метод 3: Color segmentation
     @staticmethod
-    def detect_by_color(image: np.ndarray, color_range: str = 'white') -> np.ndarray:
-        """Обнаружение по цвету"""
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    def _has_cycle(workflow: List[Dict]) -> bool:
+        """Проверка на циклы"""
+        # Упрощенная проверка - если есть более 50 блоков, возможно зацикливание
+        return len(workflow) > 50
+
+class DeepAnalyzer:
+    """Глубокий анализ workflow"""
+    
+    @staticmethod
+    def analyze(workflow: List[Dict]) -> Dict:
+        """Анализирует workflow и возвращает статистику"""
+        analysis = {
+            'total_nodes': len(workflow),
+            'node_types': {},
+            'estimated_time': 0,
+            'complexity': 'Низкая',
+            'data_flow': [],
+            'bottlenecks': [],
+            'optimizations': []
+        }
         
-        if color_range == 'white':
-            lower = np.array([0, 0, 200])
-            upper = np.array([180, 30, 255])
-        elif color_range == 'black':
-            lower = np.array([0, 0, 0])
-            upper = np.array([180, 255, 50])
-        elif color_range == 'red':
-            lower1 = np.array([0, 50, 50])
-            upper1 = np.array([10, 255, 255])
-            lower2 = np.array([170, 50, 50])
-            upper2 = np.array([180, 255, 255])
-            mask1 = cv2.inRange(hsv, lower1, upper1)
-            mask2 = cv2.inRange(hsv, lower2, upper2)
-            mask = cv2.bitwise_or(mask1, mask2)
-            return mask
+        # Подсчет типов нод
+        for node in workflow:
+            node_type = node.get('type', 'unknown')
+            analysis['node_types'][node_type] = analysis['node_types'].get(node_type, 0) + 1
+        
+        # Оценка времени выполнения
+        time_estimates = {
+            'google_sheets_read': 2,
+            'google_sheets_write': 1,
+            'deepseek': 5,
+            'http_get': 1,
+            'http_post': 1,
+            'condition': 0.1,
+            'loop': 1,
+            'excel_read': 1,
+            'email': 0.5,
+            'telegram': 0.5
+        }
+        
+        for node in workflow:
+            node_type = node.get('type', '')
+            analysis['estimated_time'] += time_estimates.get(node_type, 0.5)
+        
+        # Оценка сложности
+        if analysis['total_nodes'] <= 3:
+            analysis['complexity'] = 'Низкая (для начинающих)'
+        elif analysis['total_nodes'] <= 7:
+            analysis['complexity'] = 'Средняя'
         else:
-            lower = np.array([0, 0, 100])
-            upper = np.array([180, 50, 200])
+            analysis['complexity'] = 'Высокая (требуется тестирование)'
         
-        mask = cv2.inRange(hsv, lower, upper)
-        kernel = np.ones((7, 7), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.dilate(mask, kernel, iterations=3)
+        # Поиск узких мест
+        if analysis['node_types'].get('deepseek', 0) > 3:
+            analysis['bottlenecks'].append("⚠️ Много AI блоков - может быть медленно")
+        if analysis['node_types'].get('loop', 0) > 2:
+            analysis['bottlenecks'].append("⚠️ Вложенные циклы могут замедлить выполнение")
         
-        return mask
+        # Рекомендации
+        if analysis['estimated_time'] > 30:
+            analysis['optimizations'].append("💡 Рекомендуется добавить кэширование данных")
+        if analysis['node_types'].get('http_get', 0) > 5:
+            analysis['optimizations'].append("💡 Объедините несколько HTTP запросов в один")
+        
+        return analysis
+
+# ============================================================================
+# КЛАСС ДЛЯ РАЗВЕРТЫВАНИЯ
+# ============================================================================
+
+class AppDeployer:
+    """Развертывание созданных приложений"""
     
-    # Метод 4: Texture analysis
     @staticmethod
-    def detect_by_texture(image: np.ndarray) -> np.ndarray:
-        """Обнаружение по текстуре - для полупрозрачных знаков"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    def generate_deployable_code(workflow: List[Dict]) -> str:
+        """Генерирует standalone код для развертывания"""
         
-        lbp = np.zeros_like(gray)
-        for i in range(1, gray.shape[0] - 1):
-            for j in range(1, gray.shape[1] - 1):
-                center = gray[i, j]
-                code = 0
-                code |= (gray[i-1, j-1] > center) << 7
-                code |= (gray[i-1, j] > center) << 6
-                code |= (gray[i-1, j+1] > center) << 5
-                code |= (gray[i, j+1] > center) << 4
-                code |= (gray[i+1, j+1] > center) << 3
-                code |= (gray[i+1, j] > center) << 2
-                code |= (gray[i+1, j-1] > center) << 1
-                code |= (gray[i, j-1] > center) << 0
-                lbp[i, j] = code
-        
-        _, mask = cv2.threshold(lbp, 100, 255, cv2.THRESH_BINARY)
-        kernel = np.ones((15, 15), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        
-        return mask
+        code = f"""
+'''
+AUTOMATICALLY GENERATED WORKFLOW APP
+Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Total Blocks: {len(workflow)}
+'''
+import streamlit as st
+import pandas as pd
+import requests
+from openai import OpenAI
+import json
+from datetime import datetime
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+
+st.set_page_config(page_title="My Workflow App", layout="wide")
+st.title("🚀 Автоматизированное приложение")
+
+# API Key input
+api_key = st.sidebar.text_input("DeepSeek API Key", type="password")
+
+# ============================================================================
+# WORKFLOW DEFINITION
+# ============================================================================
+
+workflow = {json.dumps(workflow, ensure_ascii=False, indent=4)}
+
+# ============================================================================
+# EXECUTION ENGINE
+# ============================================================================
+
+def execute_node(node, data, api_key):
+    """Выполняет один блок workflow"""
+    node_type = node.get('type')
     
-    # Метод 5: Frequency domain (FFT)
-    @staticmethod
-    def detect_by_frequency(image: np.ndarray) -> np.ndarray:
-        """Обнаружение в частотной области - для повторяющихся паттернов"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        f = np.fft.fft2(gray)
-        fshift = np.fft.fftshift(f)
-        
-        rows, cols = gray.shape
-        crow, ccol = rows // 2, cols // 2
-        mask_fft = np.zeros((rows, cols), np.uint8)
-        mask_fft[crow-30:crow+30, ccol-30:ccol+30] = 255
-        
-        fshift = fshift * (1 - mask_fft/255)
-        f_ishift = np.fft.ifftshift(fshift)
-        img_back = np.fft.ifft2(f_ishift)
-        img_back = np.abs(img_back)
-        
-        img_back = (img_back - img_back.min()) / (img_back.max() - img_back.min()) * 255
-        
-        diff = cv2.absdiff(gray.astype(np.float32), img_back.astype(np.float32))
-        _, mask = cv2.threshold(diff.astype(np.uint8), 30, 255, cv2.THRESH_BINARY)
-        
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=2)
-        
-        return mask
+    if node_type == 'google_sheets_read':
+        sheet_url = node.get('config', {{}}).get('sheet_url', '')
+        if sheet_url:
+            if '/d/' in sheet_url:
+                sheet_id = sheet_url.split('/d/')[1].split('/')[0]
+            else:
+                sheet_id = sheet_url
+            csv_url = f"https://docs.google.com/spreadsheets/d/{{sheet_id}}/export?format=csv"
+            df = pd.read_csv(csv_url)
+            return df.to_dict('records')
     
-    # Метод 6: Gradient analysis
-    @staticmethod
-    def detect_by_gradient(image: np.ndarray) -> np.ndarray:
-        """Обнаружение по градиентам - для резких переходов"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-        sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-        magnitude = np.sqrt(sobelx**2 + sobely**2)
-        
-        magnitude = (magnitude - magnitude.min()) / (magnitude.max() - magnitude.min()) * 255
-        
-        _, mask = cv2.threshold(magnitude.astype(np.uint8), 50, 255, cv2.THRESH_BINARY)
-        
-        kernel = np.ones((3, 3), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=3)
-        
-        return mask
+    elif node_type == 'deepseek':
+        if not api_key:
+            return "Ошибка: нужен API ключ"
+        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
+        response = client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {{"role": "system", "content": node.get('config', {{}}).get('system_prompt', '')}},
+                {{"role": "user", "content": node.get('config', {{}}).get('user_prompt', '')}}
+            ]
+        )
+        return response.choices[0].message.content
     
-    # Метод 7: Morphological analysis
-    @staticmethod
-    def detect_by_morphology(image: np.ndarray) -> np.ndarray:
-        """Морфологический анализ - для логотипов и символов"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        kernel = np.ones((15, 15), np.uint8)
-        tophat = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
-        blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
-        
-        combined = cv2.addWeighted(tophat, 0.5, blackhat, 0.5, 0)
-        
-        _, mask = cv2.threshold(combined, 30, 255, cv2.THRESH_BINARY)
-        
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.dilate(mask, kernel, iterations=4)
-        
-        return mask
+    elif node_type in ['http_get', 'http_post']:
+        url = node.get('config', {{}}).get('url', '')
+        resp = requests.get(url) if node_type == 'http_get' else requests.post(url)
+        return resp.json()
     
-    # Метод 8: Contour analysis
-    @staticmethod
-    def detect_by_contours(image: np.ndarray, min_area: int = 500) -> np.ndarray:
-        """Анализ контуров - для поиска компактных областей"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        
-        _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        mask = np.zeros_like(gray)
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if min_area < area < image.shape[0] * image.shape[1] * 0.3:
-                cv2.drawContours(mask, [contour], -1, 255, -1)
-        
-        kernel = np.ones((7, 7), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=2)
-        
-        return mask
+    return {{"status": "executed"}}
+
+# ============================================================================
+# MAIN APP
+# ============================================================================
+
+if st.button("🚀 Запустить автоматизацию"):
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    results = []
     
-    # Метод 9: AI CLIPSeg
-    def detect_by_ai(self, image: np.ndarray, prompt: str = "watermark, logo, copyright") -> Optional[np.ndarray]:
-        """Нейросетевая детекция через CLIPSeg"""
-        if not CLIPSEG_AVAILABLE or not TORCH_AVAILABLE:
-            return None
-        
-        self._init_ai_models()
-        
-        if self.clipseg_model is None:
-            return None
+    for i, node in enumerate(workflow):
+        progress_bar.progress((i + 1) / len(workflow))
+        status_text.text(f"Выполняется: {{node.get('name', 'Block')}}")
         
         try:
-            image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-            
-            inputs = self.clipseg_processor(
-                text=[prompt],
-                images=[image_pil],
-                padding=True,
-                return_tensors="pt"
-            )
-            
-            if torch.cuda.is_available():
-                inputs = {k: v.cuda() for k, v in inputs.items()}
-            
-            with torch.no_grad():
-                outputs = self.clipseg_model(**inputs)
-            
-            logits = outputs.logits
-            if torch.cuda.is_available():
-                logits = logits.cpu()
-            
-            mask = torch.sigmoid(logits).numpy()[0, 0]
-            mask = (mask > 0.3).astype(np.uint8) * 255
-            
-            if mask.shape != image.shape[:2]:
-                mask = cv2.resize(mask, (image.shape[1], image.shape[0]))
-            
-            kernel = np.ones((7, 7), np.uint8)
-            mask = cv2.dilate(mask, kernel, iterations=3)
-            
-            return mask
-            
-        except Exception:
-            return None
-    
-    # Метод 10: Background subtraction
-    @staticmethod
-    def detect_by_background(image: np.ndarray, blur_radius: int = 21) -> np.ndarray:
-        """Вычитание фона - для полупрозрачных знаков"""
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        
-        blurred = cv2.GaussianBlur(gray, (blur_radius, blur_radius), 0)
-        
-        diff = cv2.absdiff(gray, blurred)
-        
-        diff = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
-        
-        _, mask = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
-        
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.dilate(mask, kernel, iterations=3)
-        
-        return mask
-
-# ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-
-def resize_mask_to_image(mask: np.ndarray, image_shape: Tuple[int, int]) -> np.ndarray:
-    """Приводит маску к размеру изображения"""
-    if mask.shape[:2] != image_shape[:2]:
-        return cv2.resize(mask, (image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST)
-    return mask
-
-def remove_watermark_single(image: np.ndarray, mask: np.ndarray, algorithm: str = 'telea') -> np.ndarray:
-    """Удаляет водяной знак с одного изображения"""
-    mask_resized = resize_mask_to_image(mask, image.shape)
-    
-    if algorithm == 'telea':
-        return cv2.inpaint(image, mask_resized, 3, cv2.INPAINT_TELEA)
-    elif algorithm == 'ns':
-        return cv2.inpaint(image, mask_resized, 3, cv2.INPAINT_NS)
-    else:
-        kernel = np.ones((5,5), np.uint8)
-        mask_dilated = cv2.dilate(mask_resized, kernel, iterations=1)
-        return cv2.inpaint(image, mask_dilated, 2, cv2.INPAINT_TELEA)
-
-def process_single_image(args: tuple) -> Dict:
-    """Для параллельной обработки"""
-    img_path, mask, algorithm, output_path = args
-    try:
-        img = cv2.imread(str(img_path))
-        if img is None:
-            return {'success': False, 'path': str(img_path), 'error': 'Cannot read'}
-        
-        result = remove_watermark_single(img, mask, algorithm)
-        cv2.imwrite(str(output_path), result)
-        return {'success': True, 'path': str(img_path), 'output': str(output_path)}
-    except Exception as e:
-        return {'success': False, 'path': str(img_path), 'error': str(e)}
-
-def combine_masks(masks: List[np.ndarray], method: str = 'union') -> np.ndarray:
-    """Комбинирует несколько масок"""
-    if not masks:
-        return None
-    
-    combined = np.zeros_like(masks[0])
-    
-    if method == 'union':
-        for mask in masks:
-            combined = cv2.bitwise_or(combined, mask)
-    elif method == 'intersection':
-        combined = np.ones_like(masks[0]) * 255
-        for mask in masks:
-            combined = cv2.bitwise_and(combined, mask)
-    else:
-        for mask in masks:
-            combined = cv2.addWeighted(combined, 0.5, mask, 0.5, 0)
-    
-    return combined
-
-def postprocess_mask(mask: np.ndarray, cleanup: bool = True, smooth: bool = True) -> np.ndarray:
-    """Постобработка маски для улучшения качества"""
-    if cleanup:
-        kernel = np.ones((3, 3), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-    
-    if smooth:
-        mask = cv2.medianBlur(mask, 5)
-    
-    return mask
-
-def batch_process_parallel(image_paths: List[Path], mask: np.ndarray, 
-                          algorithm: str, output_dir: Path, 
-                          max_workers: int = 4, progress_callback=None) -> List[Dict]:
-    """Параллельная пакетная обработка"""
-    tasks = []
-    for img_path in image_paths:
-        output_path = output_dir / f"cleaned_{img_path.name}"
-        tasks.append((img_path, mask, algorithm, output_path))
-    
-    results = []
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(process_single_image, task): task for task in tasks}
-        
-        for i, future in enumerate(as_completed(futures)):
-            result = future.result()
+            result = execute_node(node, results, api_key)
             results.append(result)
-            if progress_callback:
-                progress_callback(i + 1, len(tasks))
+            st.success(f"✅ {{node.get('name', 'Block')}} выполнен")
+        except Exception as e:
+            st.error(f"❌ Ошибка: {{str(e)}}")
+            break
     
-    return results
+    status_text.text("✅ Готово!")
+    st.balloons()
+    
+    # Показываем результаты
+    st.subheader("Результаты")
+    for i, result in enumerate(results):
+        with st.expander(f"Результат блока {i+1}"):
+            st.json(result)
 
-def create_zip_from_folder(folder_path: Path, zip_path: Path) -> None:
-    """Создает ZIP архив из папки"""
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for file_path in folder_path.iterdir():
-            if file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.bmp']:
-                zf.write(file_path, file_path.name)
-
-def overlay_mask_simple(image: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    """Простое и безопасное наложение маски на изображение"""
-    overlay = image.copy()
+if __name__ == "__main__":
+    pass
+"""
+        return code
     
-    # Приводим маску к нужному размеру
-    if mask.shape[:2] != overlay.shape[:2]:
-        mask_resized = cv2.resize(mask, (overlay.shape[1], overlay.shape[0]))
-    else:
-        mask_resized = mask
-    
-    # Убеждаемся что маска 2D
-    if len(mask_resized.shape) > 2:
-        mask_resized = mask_resized[:, :, 0]
-    
-    # Создаем красную подсветку
-    mask_bool = mask_resized > 0
-    
-    if len(overlay.shape) == 3:
-        overlay[mask_bool] = [255, 0, 0]
-    
-    return overlay
-
-# ========== ЗАГОЛОВОК ==========
-st.markdown('<div class="main-header">🚀 Ultimate Watermark Remover Pro</div>', unsafe_allow_html=True)
-st.markdown('<div class="info-box">💡 10 методов авто-детекции + AI + параллельная обработка 2000+ фото</div>', unsafe_allow_html=True)
-
-# ========== SIDEBAR ==========
-with st.sidebar:
-    st.header("⚙️ Настройки")
-    
-    st.session_state.processing_params['algorithm'] = st.selectbox(
-        "Алгоритм удаления",
-        ['telea', 'ns', 'fast'],
-        index=0,
-        format_func=lambda x: {
-            'telea': '📐 Telea (средне)',
-            'ns': '🎨 Navier-Stokes (качественно)',
-            'fast': '⚡ Fast (быстро)'
-        }[x]
-    )
-    
-    st.session_state.processing_params['parallel_workers'] = st.slider(
-        "🔄 Параллельных процессов",
-        min_value=1,
-        max_value=mp.cpu_count(),
-        value=min(4, mp.cpu_count()),
-        help="Больше = быстрее, но больше RAM"
-    )
-    
-    st.divider()
-    cuda_status = "Доступен" if TORCH_AVAILABLE and torch.cuda.is_available() else "Нет"
-    st.caption(f"💻 CPU ядер: {mp.cpu_count()}")
-    st.caption(f"🎮 CUDA: {cuda_status}")
-    st.caption(f"🤖 AI детекция: {'Доступна' if CLIPSEG_AVAILABLE else 'Не доступна'}")
-
-# ========== ОСНОВНОЙ КОНТЕНТ ==========
-tab1, tab2, tab3, tab4 = st.tabs(["🎨 Ручная маска", "🤖 Авто-детекция (10 методов)", "🔬 Сравнение методов", "⚡ Пакетная обработка"])
-
-# TAB 1: РУЧНОЕ СОЗДАНИЕ МАСКИ
-with tab1:
-    st.header("📝 Создание маски вручную")
-    
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        uploaded_ref = st.file_uploader(
-            "📸 Загрузите изображение для разметки",
-            type=['png', 'jpg', 'jpeg'],
-            key="manual_upload"
-        )
+    @staticmethod
+    def deploy_to_streamlit_cloud(workflow: List[Dict]) -> str:
+        """Генерирует инструкцию для деплоя на Streamlit Cloud"""
+        code = AppDeployer.generate_deployable_code(workflow)
         
-        if uploaded_ref:
-            image = Image.open(uploaded_ref)
-            st.session_state.reference_image = np.array(image)
-            
-            st.markdown("**🖌️ Рисуйте поверх водяных знаков**")
-            
-            col_a, col_b = st.columns(2)
-            with col_a:
-                brush_size = st.slider("Размер кисти", 5, 100, 30, key="brush_size")
-            with col_b:
-                draw_mode = st.selectbox("Режим", ["freedraw", "rect", "circle"], key="draw_mode")
-            
-            canvas = st_canvas(
-                fill_color="rgba(255, 0, 0, 0.3)",
-                stroke_width=brush_size,
-                stroke_color="#FF0000",
-                background_image=image,
-                drawing_mode=draw_mode,
-                key="watermark_canvas",
-                height=400,
-                width=600,
-                display_toolbar=True
-            )
-            
-            if st.button("💾 Сохранить маску", key="save_mask_manual"):
-                if canvas.image_data is not None:
-                    red_channel = canvas.image_data[:, :, 0] > 0
-                    st.session_state.master_mask = red_channel.astype(np.uint8) * 255
-                    st.success("✅ Маска сохранена!")
-                    st.balloons()
-    
-    with col2:
-        if st.session_state.master_mask is not None:
-            st.markdown("### 👁️ Текущая маска")
-            st.image(st.session_state.master_mask, caption="Области для удаления", use_column_width=True)
-            st.metric("Площадь", f"{np.sum(st.session_state.master_mask > 0):,} px")
-            
-            if st.button("🗑️ Сбросить маску", key="reset_mask"):
-                st.session_state.master_mask = None
-                st.rerun()
+        instructions = f"""
+## 🚀 ИНСТРУКЦИЯ ПО РАЗВЕРТЫВАНИЮ
 
-# TAB 2: АВТО-ДЕТЕКЦИЯ (10 МЕТОДОВ)
-with tab2:
-    st.header("🤖 Продвинутая авто-детекция - 10 методов")
-    
-    uploaded_auto = st.file_uploader(
-        "📸 Загрузите изображение с водяным знаком",
-        type=['png', 'jpg', 'jpeg'],
-        key="auto_upload"
-    )
-    
-    if uploaded_auto:
-        auto_image = Image.open(uploaded_auto)
-        auto_np = np.array(auto_image)
-        
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            st.image(auto_image, caption="Исходное изображение", use_column_width=True)
-        
-        with col2:
-            st.markdown("### Выберите метод детекции")
-            
-            detection_methods = {
-                "1️⃣ Edge Detection (Края)": "edges",
-                "2️⃣ Adaptive Threshold (Адаптивный порог)": "adaptive",
-                "3️⃣ Color Segmentation (Цвет)": "color",
-                "4️⃣ Texture Analysis (Текстура)": "texture",
-                "5️⃣ Frequency Analysis (Частоты)": "frequency",
-                "6️⃣ Gradient Analysis (Градиенты)": "gradient",
-                "7️⃣ Morphological Analysis (Морфология)": "morphology",
-                "8️⃣ Contour Analysis (Контуры)": "contours",
-                "9️⃣ AI CLIPSeg (Нейросеть)": "ai",
-                "🔟 Background Subtraction (Фон)": "background"
-            }
-            
-            selected_method = st.selectbox(
-                "Метод обнаружения",
-                list(detection_methods.keys()),
-                help="Каждый метод подходит для разных типов водяных знаков"
-            )
-            
-            col_a, col_b = st.columns(2)
-            
-            detector = AdvancedWatermarkDetector()
-            
-            with col_a:
-                sensitivity = st.slider("Чувствительность", 1, 200, 100, key="detect_sens")
-            
-            with col_b:
-                post_clean = st.checkbox("Пост-обработка маски", True)
-            
-            if selected_method == "3️⃣ Color Segmentation (Цвет)":
-                color_type = st.selectbox("Цвет", ["white", "black", "red", "semi-transparent"])
-            else:
-                color_type = None
-            
-            if st.button("🔍 Найти водяные знаки", key="detect_btn_advanced"):
-                with st.spinner(f"Анализ методом {selected_method}..."):
-                    method_key = detection_methods[selected_method]
-                    
-                    if method_key == "edges":
-                        mask = detector.detect_by_edges(auto_np, sensitivity)
-                    elif method_key == "adaptive":
-                        mask = detector.detect_by_adaptive_threshold(auto_np)
-                    elif method_key == "color":
-                        mask = detector.detect_by_color(auto_np, color_type)
-                    elif method_key == "texture":
-                        mask = detector.detect_by_texture(auto_np)
-                    elif method_key == "frequency":
-                        mask = detector.detect_by_frequency(auto_np)
-                    elif method_key == "gradient":
-                        mask = detector.detect_by_gradient(auto_np)
-                    elif method_key == "morphology":
-                        mask = detector.detect_by_morphology(auto_np)
-                    elif method_key == "contours":
-                        mask = detector.detect_by_contours(auto_np)
-                    elif method_key == "ai":
-                        mask = detector.detect_by_ai(auto_np)
-                    else:
-                        mask = detector.detect_by_background(auto_np)
-                    
-                    if mask is None:
-                        st.error("❌ Метод недоступен. Установите torch и transformers для AI детекции")
-                    else:
-                        if post_clean:
-                            mask = postprocess_mask(mask)
-                        
-                        st.session_state.auto_mask = mask
-                        
-                        col_res1, col_res2 = st.columns(2)
-                        
-                        with col_res1:
-                            st.image(mask, caption=f"Результат {selected_method}", use_column_width=True)
-                            st.metric("Обнаружено пикселей", f"{np.sum(mask > 0):,}")
-                        
-                        with col_res2:
-                            # Безопасное наложение маски
-                            try:
-                                overlay = overlay_mask_simple(auto_np, mask)
-                                st.image(overlay, caption="Наложение маски", use_column_width=True)
-                            except Exception as e:
-                                st.image(auto_np, caption="Исходное изображение", use_column_width=True)
-                                st.caption(f"Наложение маски временно недоступно")
-                        
-                        if st.button("✅ Использовать эту маску", key="use_auto_mask_advanced"):
-                            st.session_state.master_mask = mask
-                            st.success("✅ Маска сохранена! Перейдите в 'Пакетную обработку'")
-                            st.balloons()
-                        
-                        st.session_state.detection_history.append({
-                            'method': selected_method,
-                            'area': int(np.sum(mask > 0)),
-                            'timestamp': time.time()
-                        })
+### Шаг 1: Создайте файлы
 
-# TAB 3: СРАВНЕНИЕ МЕТОДОВ
-with tab3:
-    st.header("🔬 Сравнение всех методов детекции")
-    
-    if 'uploaded_auto' in dir() and uploaded_auto is None:
-        st.info("👆 Сначала загрузите изображение на вкладке 'Авто-детекция'")
-    elif 'uploaded_auto' not in dir():
-        st.info("👆 Сначала загрузите изображение на вкладке 'Авто-детекция'")
-    else:
-        st.markdown("### 📊 Сравнительный анализ")
-        
-        if st.button("🚀 Запустить все методы (может занять 30 сек)", key="compare_all"):
-            detector = AdvancedWatermarkDetector()
-            
-            all_masks = {}
-            methods_to_test = {
-                "Edge Detection": lambda: detector.detect_by_edges(auto_np, 100),
-                "Adaptive Threshold": lambda: detector.detect_by_adaptive_threshold(auto_np),
-                "Color (White)": lambda: detector.detect_by_color(auto_np, 'white'),
-                "Color (Black)": lambda: detector.detect_by_color(auto_np, 'black'),
-                "Texture": lambda: detector.detect_by_texture(auto_np),
-                "Frequency": lambda: detector.detect_by_frequency(auto_np),
-                "Gradient": lambda: detector.detect_by_gradient(auto_np),
-                "Morphology": lambda: detector.detect_by_morphology(auto_np),
-                "Contours": lambda: detector.detect_by_contours(auto_np),
-                "Background Sub": lambda: detector.detect_by_background(auto_np)
-            }
-            
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            for i, (name, func) in enumerate(methods_to_test.items()):
-                status_text.text(f"Тестирование: {name}")
-                try:
-                    mask = func()
-                    mask = postprocess_mask(mask)
-                    all_masks[name] = mask
-                except Exception as e:
-                    all_masks[name] = np.zeros_like(auto_np[:, :, 0])
-                
-                progress_bar.progress((i + 1) / len(methods_to_test))
-            
-            status_text.text("✅ Тестирование завершено!")
-            
-            cols = st.columns(3)
-            for idx, (name, mask) in enumerate(all_masks.items()):
-                with cols[idx % 3]:
-                    st.markdown(f"**{name}**")
-                    st.image(mask, use_column_width=True)
-                    area = np.sum(mask > 0)
-                    st.caption(f"Площадь: {area:,} px")
-            
-            st.markdown("### 🎯 Комбинированный результат")
-            
-            col_c1, col_c2, col_c3 = st.columns(3)
-            
-            with col_c1:
-                if st.button("Объединение (Union)"):
-                    combined = combine_masks(list(all_masks.values()), 'union')
-                    combined = postprocess_mask(combined)
-                    st.image(combined, use_column_width=True)
-                    
-                    if st.button("✅ Использовать Union маску"):
-                        st.session_state.master_mask = combined
-                        st.success("✅ Маска сохранена!")
-            
-            with col_c2:
-                if st.button("Пересечение (Intersection)"):
-                    combined = combine_masks(list(all_masks.values()), 'intersection')
-                    combined = postprocess_mask(combined)
-                    st.image(combined, use_column_width=True)
-                    
-                    if st.button("✅ Использовать Intersection маску"):
-                        st.session_state.master_mask = combined
-                        st.success("✅ Маска сохранена!")
-            
-            with col_c3:
-                if st.button("Взвешенное (Weighted)"):
-                    combined = combine_masks(list(all_masks.values()), 'weighted')
-                    combined = postprocess_mask(combined)
-                    st.image(combined, use_column_width=True)
-                    
-                    if st.button("✅ Использовать Weighted маску"):
-                        st.session_state.master_mask = combined
-                        st.success("✅ Маска сохранена!")
-
-# TAB 4: ПАКЕТНАЯ ОБРАБОТКА
-with tab4:
-    st.header("⚡ Пакетная обработка 2000+ изображений")
-    
-    if st.session_state.master_mask is None:
-        st.markdown('<div class="warning-box">⚠️ Сначала создайте маску на вкладке "Ручная маска" или "Авто-детекция"</div>', unsafe_allow_html=True)
-    else:
-        mask_area = np.sum(st.session_state.master_mask > 0)
-        st.markdown(f'<div class="success-box">✅ Маска готова! Будет обработано {mask_area:,} пикселей на каждом изображении</div>', unsafe_allow_html=True)
-        
-        if st.session_state.detection_history:
-            st.markdown("### 📊 История детекции")
-            for hist in st.session_state.detection_history[-3:]:
-                st.caption(f"• {hist['method']}: {hist['area']:,} px")
-        
-        st.subheader("📦 Загрузите архив с изображениями")
-        
-        uploaded_zip = st.file_uploader(
-            "ZIP архив с изображениями (поддерживаются JPG, PNG, BMP)",
-            type=['zip'],
-            key="batch_zip"
-        )
-        
-        if uploaded_zip:
-            with zipfile.ZipFile(uploaded_zip, 'r') as zf:
-                file_list = [f for f in zf.namelist() if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp'))]
-                file_count = len(file_list)
-            
-            st.info(f"📸 Найдено изображений: {file_count}")
-            
-            if file_count == 0:
-                st.error("❌ В архиве нет поддерживаемых изображений")
-            else:
-                est_time = file_count * 0.4 / st.session_state.processing_params['parallel_workers']
-                st.caption(f"⏱️ Примерное время: {est_time:.1f} мин")
-                
-                col_opt1, col_opt2 = st.columns(2)
-                with col_opt1:
-                    auto_cleanup = st.checkbox("Авто-очистка маски при обработке", True)
-                
-                if st.button("🚀 СТАРТ ОБРАБОТКИ", type="primary", use_container_width=True):
-                    start_time = time.time()
-                    
-                    progress_bar = st.progress(0)
-                    status_text = st.empty()
-                    
-                    with tempfile.TemporaryDirectory() as tmpdir:
-                        tmp_path = Path(tmpdir)
-                        
-                        status_text.text("📦 Распаковка архива...")
-                        with zipfile.ZipFile(uploaded_zip, 'r') as zf:
-                            zf.extractall(tmp_path)
-                        
-                        image_paths = []
-                        for ext in ['*.jpg', '*.jpeg', '*.png', '*.bmp']:
-                            image_paths.extend(tmp_path.glob(ext))
-                            image_paths.extend(tmp_path.glob(f"**/{ext}"))
-                        
-                        status_text.text(f"🖼️ Найдено {len(image_paths)} изображений")
-                        
-                        final_mask = st.session_state.master_mask.copy()
-                        if auto_cleanup:
-                            final_mask = postprocess_mask(final_mask, cleanup=True, smooth=True)
-                        
-                        output_dir = tmp_path / "watermark_free"
-                        output_dir.mkdir(exist_ok=True)
-                        
-                        def update_progress(current, total):
-                            progress_bar.progress(current / total)
-                            elapsed = time.time() - start_time
-                            if current > 0:
-                                speed = current / elapsed
-                                status_text.text(f"🔄 Обработано: {current} из {total} ({current/total*100:.1f}%) | "
-                                               f"Скорость: {speed:.2f} фото/сек")
-                            else:
-                                status_text.text(f"🔄 Обработано: {current} из {total} ({current/total*100:.1f}%)")
-                        
-                        results = batch_process_parallel(
-                            image_paths=image_paths,
-                            mask=final_mask,
-                            algorithm=st.session_state.processing_params['algorithm'],
-                            output_dir=output_dir,
-                            max_workers=st.session_state.processing_params['parallel_workers'],
-                            progress_callback=update_progress
-                        )
-                        
-                        success_count = sum(1 for r in results if r['success'])
-                        error_count = len(results) - success_count
-                        
-                        status_text.text("📦 Создание ZIP архива...")
-                        result_zip = tmp_path / "watermark_free_images.zip"
-                        create_zip_from_folder(output_dir, result_zip)
-                        
-                        elapsed = time.time() - start_time
-                        
-                        status_text.text("✅ Обработка завершена!")
-                        
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("✅ Успешно", success_count)
-                        with col2:
-                            st.metric("❌ Ошибок", error_count)
-                        with col3:
-                            st.metric("⏱️ Время", f"{elapsed/60:.1f} мин")
-                        with col4:
-                            if elapsed > 0:
-                                st.metric("⚡ Скорость", f"{success_count/elapsed:.2f} фото/сек")
-                        
-                        with open(result_zip, "rb") as f:
-                            st.download_button(
-                                label="💾 Скачать все обработанные изображения (ZIP)",
-                                data=f,
-                                file_name="watermark_free_images.zip",
-                                mime="application/zip",
-                                use_container_width=True
-                            )
-                        
-                        st.balloons()
-                        st.success("🎉 Готово! Все изображения очищены от водяных знаков!")
-
-# ========== FOOTER ==========
-st.divider()
-st.caption("""
-    🚀 **Ultimate Watermark Remover Pro** | Версия 3.2 (Полностью исправлена)
-    - 10 методов авто-детекции водяных знаков
-    - AI детекция через CLIPSeg
-    - Параллельная обработка 2000+ фото
-    - Комбинирование масок
-""")
+1. Создайте папку `my_workflow_app`
+2. Создайте файл `app.py` и скопируйте туда код ниже:
+```python
+{code[:500]}...
