@@ -133,12 +133,12 @@ st.markdown("""
         margin: 0.5rem 0;
         font-family: monospace;
     }
-    button {
+    .stButton button {
         border-radius: 10px !important;
         font-weight: bold !important;
         transition: all 0.3s ease;
     }
-    button:hover {
+    .stButton button:hover {
         transform: scale(1.02);
         box-shadow: 0 5px 15px rgba(0,0,0,0.2);
     }
@@ -147,6 +147,15 @@ st.markdown("""
     }
     .stTextInput input {
         border-radius: 10px;
+    }
+    div[data-testid="stExpander"] details {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 15px;
+        border: none;
+    }
+    div[data-testid="stExpander"] summary {
+        color: white;
+        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -309,11 +318,13 @@ class AIAgent:
             'timestamp': datetime.now().isoformat(),
             'access_count': 0
         }
+        # Обновляем или добавляем
         existing_idx = None
         for i, mem in enumerate(self.memory):
             if mem['key'] == key:
                 existing_idx = i
                 break
+        
         if existing_idx is not None:
             self.memory[existing_idx] = memory_item
         else:
@@ -338,16 +349,19 @@ class AIAgent:
         }
         self.conversation_history.append(conversation)
         self.stats['total_conversations'] += 1
+        
+        # Обновляем успешность на основе фидбека
         if feedback == 'positive':
-            prev = self.stats['success_rate'] * (self.stats['total_conversations'] - 1)
-            self.stats['success_rate'] = (prev + 100) / self.stats['total_conversations']
+            self.stats['success_rate'] = (self.stats['success_rate'] * (self.stats['total_conversations'] - 1) + 100) / self.stats['total_conversations']
         elif feedback == 'negative':
-            prev = self.stats['success_rate'] * (self.stats['total_conversations'] - 1)
-            self.stats['success_rate'] = (prev + 0) / self.stats['total_conversations']
+            self.stats['success_rate'] = (self.stats['success_rate'] * (self.stats['total_conversations'] - 1) + 0) / self.stats['total_conversations']
     
     def get_context_summary(self) -> str:
         """Возвращает краткую сводку контекста агента"""
-        return f"Роль: {self.role}\nПамять: {len(self.memory)} фактов\nОбучен на: {len(self.training_examples)} примерах"
+        summary = f"Роль: {self.role}\n"
+        summary += f"Память: {len(self.memory)} фактов\n"
+        summary += f"Обучен на: {len(self.training_examples)} примерах\n"
+        return summary
     
     def generate_response(self, user_input: str, api_key: str, use_training: bool = True) -> str:
         """Генерирует ответ с учётом обучения и памяти"""
@@ -369,14 +383,16 @@ class AIAgent:
             if use_training and self.training_examples:
                 training_context = "\n\nПРИМЕРЫ ОБУЧЕНИЯ:\n"
                 for ex in self.training_examples[-3:]:
-                    training_context += f"Пользователь: {ex['user_input']}\nПравильный ответ: {ex['expected_output']}\n\n"
+                    training_context += f"Пользователь: {ex['user_input']}\n"
+                    training_context += f"Правильный ответ: {ex['expected_output']}\n\n"
             
             # Собираем историю диалогов
             history_context = ""
             if self.conversation_history:
                 history_context = "\n\nИСТОРИЯ ДИАЛОГОВ:\n"
                 for conv in self.conversation_history[-3:]:
-                    history_context += f"Пользователь: {conv['user']}\nАгент: {conv['agent']}\n\n"
+                    history_context += f"Пользователь: {conv['user']}\n"
+                    history_context += f"Агент: {conv['agent']}\n\n"
             
             full_prompt = f"""
 Ты - ИИ агент с именем "{self.name}" и ролью "{self.role}".
@@ -400,6 +416,7 @@ class AIAgent:
                 temperature=0.7
             )
             return response.choices[0].message.content
+            
         except Exception as e:
             return f"Ошибка: {str(e)}"
     
@@ -488,11 +505,14 @@ class AIWorkflowGenerator:
             )
             
             content = response.choices[0].message.content
+            # Извлекаем JSON из ответа
             json_match = re.search(r'\[[\s\S]*\]', content)
             if json_match:
                 workflow = json.loads(json_match.group())
                 return workflow
-            return []
+            else:
+                return []
+                
         except Exception as e:
             st.error(f"Ошибка генерации: {str(e)}")
             return []
@@ -516,15 +536,18 @@ class AgentManager:
             st.session_state.agents = {agent.id: agent.to_dict() for agent in default_agents}
             st.session_state.current_agent_id = default_agents[0].id if default_agents else None
         
+        # Восстанавливаем агентов из словарей
         for agent_id, agent_dict in st.session_state.agents.items():
             if agent_id not in self.agents:
                 self.agents[agent_id] = AIAgent.from_dict(agent_dict)
+        
         self.current_agent_id = st.session_state.get('current_agent_id')
     
     def _create_default_agents(self) -> List[AIAgent]:
         """Создаёт агентов по умолчанию"""
         agents = []
         
+        # Агент аналитик данных
         analyst = AIAgent(
             name="Аналитик Данных",
             role="эксперт по анализу данных и бизнес-метрикам",
@@ -536,6 +559,7 @@ class AgentManager:
         )
         agents.append(analyst)
         
+        # Агент помощник по автоматизации
         automation = AIAgent(
             name="Автоматизатор",
             role="специалист по автоматизации бизнес-процессов",
@@ -547,6 +571,7 @@ class AgentManager:
         )
         agents.append(automation)
         
+        # Агент менеджер задач
         manager = AIAgent(
             name="Менеджер Задач",
             role="помощник по управлению задачами и проектами",
@@ -612,7 +637,7 @@ class AgentManager:
             return False
 
 # ============================================================================
-# КЛАСС ДЛЯ ВЫПОЛНЕНИЯ WORKFLOW
+# КЛАСС ДЛЯ ВЫПОЛНЕНИЯ WORKFLOW (КАК В n8n)
 # ============================================================================
 
 class WorkflowExecutor:
@@ -625,6 +650,7 @@ class WorkflowExecutor:
         self.context = {}
         self.results = []
         self.current_node_index = 0
+        self.branch_stack = []
     
     def execute(self, progress_callback=None) -> Dict:
         """Запускает выполнение workflow"""
@@ -632,6 +658,7 @@ class WorkflowExecutor:
         
         while self.current_node_index < len(self.workflow):
             node = self.workflow[self.current_node_index]
+            
             if progress_callback:
                 progress_callback(self.current_node_index, node)
             
@@ -642,10 +669,14 @@ class WorkflowExecutor:
                     'result': result,
                     'timestamp': datetime.now().isoformat()
                 })
+                
+                # Обновляем контекст
                 if isinstance(result, dict):
                     self.context.update(result)
+                
                 node['status'] = 'success'
                 self.current_node_index += 1
+                
             except Exception as e:
                 node['status'] = 'error'
                 node['error'] = str(e)
@@ -670,47 +701,70 @@ class WorkflowExecutor:
         
         if node_type == 'google_sheets_read':
             return self._execute_google_sheets(config)
+        
         elif node_type == 'deepseek':
             return self._execute_deepseek(config)
+        
+        elif node_type == 'http_get':
+            return self._execute_http_get(config)
+        
+        elif node_type == 'http_post':
+            return self._execute_http_post(config)
+        
         elif node_type == 'condition':
             return self._execute_condition(config)
-        elif node_type == 'ai_agent':
-            return self._execute_ai_agent(config)
-        elif node_type == 'email':
-            return {'status': 'ready', 'to': config.get('to', ''), 'subject': config.get('subject', '')}
-        elif node_type == 'telegram':
-            return {'status': 'ready', 'chat_id': config.get('chat_id', ''), 'message': config.get('message', '')}
+        
         elif node_type == 'loop':
             return self._execute_loop(config)
-        elif node_type in ['http_get', 'http_post']:
-            return self._execute_http(config, node_type)
+        
+        elif node_type == 'email':
+            return self._execute_email(config)
+        
+        elif node_type == 'telegram':
+            return self._execute_telegram(config)
+        
+        elif node_type == 'ai_agent':
+            return self._execute_ai_agent(config)
+        
         else:
-            return {'status': 'executed'}
+            return {'status': 'unknown_type', 'type': node_type}
     
     def _execute_google_sheets(self, config: Dict) -> Dict:
+        """Выполняет чтение из Google Sheets"""
         sheet_url = config.get('sheet_url', '')
         if not sheet_url:
             return {'error': 'URL не указан'}
+        
         try:
             if '/d/' in sheet_url:
                 sheet_id = sheet_url.split('/d/')[1].split('/')[0]
             else:
                 sheet_id = sheet_url
+            
             csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
             df = pd.read_csv(csv_url)
-            return {'data': df.to_dict('records'), 'rows': len(df), 'columns': list(df.columns)}
+            return {
+                'data': df.to_dict('records'),
+                'rows': len(df),
+                'columns': list(df.columns)
+            }
         except Exception as e:
             return {'error': str(e)}
     
     def _execute_deepseek(self, config: Dict) -> Dict:
+        """Выполняет запрос к DeepSeek AI"""
         if not self.api_key:
             return {'error': 'API ключ не указан'}
+        
         try:
             client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com/v1")
+            
+            # Подставляем переменные из контекста
             user_prompt = config.get('user_prompt', '')
             for key, value in self.context.items():
                 if isinstance(value, str):
                     user_prompt = user_prompt.replace(f"{{{{{key}}}}}", value)
+            
             response = client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[
@@ -719,18 +773,36 @@ class WorkflowExecutor:
                 ],
                 temperature=float(config.get('temperature', 0.3))
             )
-            return {'response': response.choices[0].message.content}
+            
+            return {
+                'response': response.choices[0].message.content,
+                'model': 'deepseek-chat'
+            }
         except Exception as e:
             return {'error': str(e)}
     
     def _execute_condition(self, config: Dict) -> Dict:
+        """Выполняет условие на русском языке"""
         condition_text = config.get('condition', '')
+        
+        # Парсим русское условие
         parsed = RussianConditionParser.parse(condition_text)
+        
+        # Вычисляем условие
         result = self._evaluate_condition(condition_text)
-        return {'condition': condition_text, 'result': result, 'parsed': parsed, 'code': parsed.get('code')}
+        
+        return {
+            'condition': condition_text,
+            'result': result,
+            'parsed': parsed,
+            'code': parsed.get('code')
+        }
     
     def _evaluate_condition(self, condition_text: str) -> bool:
+        """Вычисляет значение условия"""
         condition_text = condition_text.lower()
+        
+        # Простые проверки
         if 'больше' in condition_text:
             match = re.search(r'(\w+)\s+больше\s+(\d+)', condition_text)
             if match:
@@ -738,6 +810,7 @@ class WorkflowExecutor:
                 value = float(match.group(2))
                 context_value = self.context.get(var_name, 0)
                 return float(context_value) > value
+        
         elif 'меньше' in condition_text:
             match = re.search(r'(\w+)\s+меньше\s+(\d+)', condition_text)
             if match:
@@ -745,52 +818,116 @@ class WorkflowExecutor:
                 value = float(match.group(2))
                 context_value = self.context.get(var_name, 0)
                 return float(context_value) < value
-        elif 'равно' in condition_text:
+        
+        elif 'равно' in condition_text or 'равняется' in condition_text:
             match = re.search(r'(\w+)\s+равно\s+(.+)', condition_text)
             if match:
                 var_name = match.group(1)
                 value = match.group(2).strip().strip("'\"")
                 context_value = self.context.get(var_name, '')
                 return str(context_value) == value
-        return True
-    
-    def _execute_ai_agent(self, config: Dict) -> Dict:
-        if not self.agent_manager:
-            return {'error': 'Менеджер агентов не инициализирован'}
-        agent_id = config.get('agent_id')
-        if not agent_id or agent_id not in self.agent_manager.agents:
-            return {'error': 'Агент не найден'}
-        agent = self.agent_manager.agents[agent_id]
-        question = config.get('question', '')
-        use_training = config.get('use_training', True)
-        response = agent.generate_response(question, self.api_key, use_training)
-        return {'agent': agent.name, 'response': response}
+        
+        elif 'содержит' in condition_text:
+            match = re.search(r'(\w+)\s+содержит\s+(.+)', condition_text)
+            if match:
+                var_name = match.group(1)
+                value = match.group(2).strip().strip("'\"")
+                context_value = str(self.context.get(var_name, ''))
+                return value in context_value
+        
+        return True  # По умолчанию условие истинно
     
     def _execute_loop(self, config: Dict) -> Dict:
+        """Выполняет цикл по элементам"""
         items = config.get('items', '[]')
         if isinstance(items, str):
             try:
                 items = json.loads(items)
             except:
                 items = []
-        return {'items': items, 'count': len(items), 'batch_size': config.get('batch_size', 10)}
+        
+        batch_size = int(config.get('batch_size', 10))
+        
+        return {
+            'items': items,
+            'count': len(items),
+            'batch_size': batch_size,
+            'processed': 0
+        }
     
-    def _execute_http(self, config: Dict, method: str) -> Dict:
+    def _execute_http_get(self, config: Dict) -> Dict:
+        """Выполняет HTTP GET запрос"""
         url = config.get('url', '')
         if not url:
             return {'error': 'URL не указан'}
+        
         try:
-            headers = {}
-            if method == 'http_get':
-                response = requests.get(url, headers=headers, timeout=30)
-            else:
-                body = config.get('body', '{}')
-                if isinstance(body, str):
-                    body = json.loads(body)
-                response = requests.post(url, headers=headers, json=body, timeout=30)
-            return {'status': response.status_code, 'data': response.json() if response.status_code == 200 else None}
+            response = requests.get(url, timeout=30)
+            return {
+                'status': response.status_code,
+                'data': response.json() if response.status_code == 200 else None,
+                'url': url
+            }
         except Exception as e:
             return {'error': str(e)}
+    
+    def _execute_http_post(self, config: Dict) -> Dict:
+        """Выполняет HTTP POST запрос"""
+        url = config.get('url', '')
+        if not url:
+            return {'error': 'URL не указан'}
+        
+        try:
+            body = config.get('body', '{}')
+            if isinstance(body, str):
+                body = json.loads(body)
+            
+            response = requests.post(url, json=body, timeout=30)
+            return {
+                'status': response.status_code,
+                'data': response.json() if response.status_code == 200 else None,
+                'url': url
+            }
+        except Exception as e:
+            return {'error': str(e)}
+    
+    def _execute_email(self, config: Dict) -> Dict:
+        """Подготавливает email (демо)"""
+        return {
+            'to': config.get('to', ''),
+            'subject': config.get('subject', ''),
+            'body': config.get('body', ''),
+            'status': 'ready'
+        }
+    
+    def _execute_telegram(self, config: Dict) -> Dict:
+        """Подготавливает Telegram (демо)"""
+        return {
+            'chat_id': config.get('chat_id', ''),
+            'message': config.get('message', ''),
+            'status': 'ready'
+        }
+    
+    def _execute_ai_agent(self, config: Dict) -> Dict:
+        """Выполняет запрос к ИИ агенту"""
+        if not self.agent_manager:
+            return {'error': 'Менеджер агентов не инициализирован'}
+        
+        agent_id = config.get('agent_id')
+        if not agent_id or agent_id not in self.agent_manager.agents:
+            return {'error': 'Агент не найден'}
+        
+        agent = self.agent_manager.agents[agent_id]
+        question = config.get('question', '')
+        use_training = config.get('use_training', True)
+        
+        response = agent.generate_response(question, self.api_key, use_training)
+        
+        return {
+            'agent': agent.name,
+            'question': question,
+            'response': response
+        }
 
 # ============================================================================
 # ИНИЦИАЛИЗАЦИЯ СЕССИИ
@@ -814,7 +951,7 @@ if 'analytics' not in st.session_state:
 agent_manager = st.session_state.agent_manager
 
 # ============================================================================
-# БОКОВАЯ ПАНЕЛЬ
+# БОКОВАЯ ПАНЕЛЬ - АГЕНТЫ
 # ============================================================================
 
 with st.sidebar:
@@ -903,7 +1040,7 @@ with st.sidebar:
 # ОСНОВНЫЕ ВКЛАДКИ
 # ============================================================================
 
-tabs = st.tabs(["💬 ДИАЛОГ С АГЕНТОМ", "📚 ОБУЧЕНИЕ", "🧠 ПАМЯТЬ", "📊 АНАЛИТИКА", "🤖 WORKFLOW", "🔀 УСЛОВИЯ", "📖 ИНСТРУКЦИЯ"])
+tabs = st.tabs(["💬 ДИАЛОГ С АГЕНТОМ", "📚 ОБУЧЕНИЕ", "🧠 ПАМЯТЬ", "📊 АНАЛИТИКА", "🤖 WORKFLOW", "🔀 РУССКИЕ УСЛОВИЯ", "📖 ИНСТРУКЦИЯ"])
 
 # ============================================================================
 # ВКЛАДКА 1: ДИАЛОГ С АГЕНТОМ
@@ -919,34 +1056,11 @@ with tabs[0]:
         st.markdown(f"*Роль: {current_agent.role}*")
         
         # История диалога
-        for msg in st.session_state.agent_messages:
+        for idx, msg in enumerate(st.session_state.agent_messages):
             if msg['role'] == 'user':
                 st.markdown(f"**👤 Вы:** {msg['content']}")
             else:
                 st.markdown(f"**🤖 {current_agent.name}:** {msg['content']}")
-                if msg.get('feedback_shown'):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button(f"👍 Полезно", key=f"good_{msg.get('id', '')}"):
-                            # Находим предыдущее сообщение пользователя
-                            prev_user = ""
-                            for m in reversed(st.session_state.agent_messages):
-                                if m.get('role') == 'user' and m.get('timestamp', '') < msg.get('timestamp', ''):
-                                    prev_user = m.get('content', '')
-                                    break
-                            current_agent.add_conversation(prev_user, msg['content'], 'positive')
-                            agent_manager.save_agents()
-                            st.success("Спасибо за отзыв!")
-                    with col2:
-                        if st.button(f"👎 Не полезно", key=f"bad_{msg.get('id', '')}"):
-                            prev_user = ""
-                            for m in reversed(st.session_state.agent_messages):
-                                if m.get('role') == 'user' and m.get('timestamp', '') < msg.get('timestamp', ''):
-                                    prev_user = m.get('content', '')
-                                    break
-                            current_agent.add_conversation(prev_user, msg['content'], 'negative')
-                            agent_manager.save_agents()
-                            st.success("Спасибо, учтём при обучении!")
             st.markdown("---")
         
         # Ввод сообщения
@@ -969,12 +1083,9 @@ with tabs[0]:
                         response = current_agent.generate_response(user_input, api_key, use_training)
                     
                     # Добавляем ответ агента
-                    msg_id = len(st.session_state.agent_messages)
                     st.session_state.agent_messages.append({
                         'role': 'agent',
                         'content': response,
-                        'id': msg_id,
-                        'feedback_shown': True,
                         'timestamp': datetime.now().isoformat()
                     })
                     
@@ -1212,13 +1323,13 @@ with tabs[4]:
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("### 📦 Добавить блок с агентом")
+        st.markdown("### 📦 Добавить блок в workflow")
         
         # Блоки для workflow
         block_types = [
             ("📖 Google Таблицы", "google_sheets_read"),
             ("🧠 DeepSeek AI", "deepseek"),
-            ("🔀 Условие", "condition"),
+            ("🔀 Условие (русское)", "condition"),
             ("📧 Email", "email"),
             ("📱 Telegram", "telegram"),
             ("🔄 Цикл", "loop"),
@@ -1257,8 +1368,15 @@ with tabs[4]:
         st.markdown("### 📋 Текущий workflow")
         if st.session_state.workflow:
             for i, block in enumerate(st.session_state.workflow):
+                # Определяем стиль
+                status_class = ""
+                if block.get('status') == 'success':
+                    status_class = "workflow-node-success"
+                elif block.get('status') == 'error':
+                    status_class = "workflow-node-error"
+                
                 st.markdown(f"""
-                <div class="workflow-node">
+                <div class="workflow-node {status_class}">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <span style="font-size: 1.2rem;">{block.get('icon', '•')}</span>
@@ -1272,31 +1390,46 @@ with tabs[4]:
                 if i < len(st.session_state.workflow) - 1:
                     st.markdown('<div style="text-align: center; font-size: 1.2rem;">▼</div>', unsafe_allow_html=True)
                 
-                with st.expander(f"Настроить {block.get('name', 'Block')}"):
+                with st.expander(f"⚙️ Настроить {block.get('name', 'Block')}"):
                     block_type = block.get('type', '')
                     config = block.get('config', {})
                     
                     if block_type == 'google_sheets_read':
                         config['sheet_url'] = st.text_input("URL Google Таблицы", config.get('sheet_url', ''), key=f"url_{i}")
+                        st.caption("💡 Пример: https://docs.google.com/spreadsheets/d/ВАШ_ID_ТАБЛИЦЫ/edit")
                     
                     elif block_type == 'deepseek':
-                        config['system_prompt'] = st.text_area("Инструкция для ИИ", config.get('system_prompt', 'Ты полезный ассистент'), height=80, key=f"sys_{i}")
-                        config['user_prompt'] = st.text_area("Запрос", config.get('user_prompt', ''), height=80, key=f"user_{i}")
-                        config['temperature'] = st.slider("Креативность", 0.0, 1.0, 0.3, key=f"temp_{i}")
+                        config['system_prompt'] = st.text_area("Инструкция для ИИ", 
+                            config.get('system_prompt', 'Ты полезный ассистент'), 
+                            height=80, key=f"sys_{i}")
+                        config['user_prompt'] = st.text_area("Запрос к ИИ", 
+                            config.get('user_prompt', ''), 
+                            height=80, key=f"user_{i}")
+                        config['temperature'] = st.slider("Креативность", 0.0, 1.0, 
+                            float(config.get('temperature', 0.3)), key=f"temp_{i}")
                     
                     elif block_type == 'condition':
-                        config['condition'] = st.text_area("Условие на русском", config.get('condition', 'если цена больше 1000 то'), height=80, key=f"cond_{i}")
+                        st.markdown("**Напишите условие на русском языке:**")
+                        st.caption("Примеры: 'если цена больше 1000', 'если статус равно успех', 'если текст содержит срочно'")
+                        config['condition'] = st.text_area("Условие", 
+                            config.get('condition', 'если цена больше 1000'), 
+                            height=80, key=f"cond_{i}")
+                        
+                        # Показываем преобразование
                         if config.get('condition'):
                             parsed = RussianConditionParser.parse(config['condition'])
                             if parsed.get('code'):
-                                st.info(f"Преобразовано в: {parsed['code']}")
+                                st.info(f"🔍 Преобразовано в: `{parsed['code']}`")
                     
                     elif block_type == 'ai_agent':
                         agent = agent_manager.agents.get(block.get('agent_id'))
                         if agent:
-                            st.info(f"Агент: {agent.name} (роль: {agent.role})")
-                            config['question'] = st.text_area("Вопрос к агенту:", config.get('question', ''), key=f"q_{i}")
-                            config['use_training'] = st.checkbox("Использовать обучение", config.get('use_training', True), key=f"train_{i}")
+                            st.info(f"🧠 Агент: {agent.name} | Роль: {agent.role}")
+                            config['question'] = st.text_area("Вопрос к агенту:", 
+                                config.get('question', 'Проанализируй данные'), 
+                                height=80, key=f"q_{i}")
+                            config['use_training'] = st.checkbox("Использовать обучение", 
+                                config.get('use_training', True), key=f"train_{i}")
                     
                     elif block_type == 'email':
                         config['to'] = st.text_input("Кому", config.get('to', ''), key=f"to_{i}")
@@ -1308,14 +1441,19 @@ with tabs[4]:
                         config['message'] = st.text_area("Сообщение", config.get('message', ''), height=80, key=f"msg_{i}")
                     
                     elif block_type == 'loop':
-                        config['items'] = st.text_area("Элементы (JSON)", config.get('items', '[1,2,3,4,5]'), height=80, key=f"items_{i}")
-                        config['batch_size'] = st.number_input("Размер пачки", 1, 100, config.get('batch_size', 10), key=f"batch_{i}")
+                        config['items'] = st.text_area("Элементы (JSON массив)", 
+                            config.get('items', '[1, 2, 3, 4, 5]'), 
+                            height=80, key=f"items_{i}")
+                        config['batch_size'] = st.number_input("Размер пачки", 1, 100, 
+                            int(config.get('batch_size', 10)), key=f"batch_{i}")
                     
                     elif block_type in ['http_get', 'http_post']:
                         config['url'] = st.text_input("URL", config.get('url', ''), key=f"url_{i}")
-                        config['headers'] = st.text_area("Заголовки (JSON)", config.get('headers', '{}'), key=f"headers_{i}")
+                        config['headers'] = st.text_area("Заголовки (JSON)", 
+                            config.get('headers', '{}'), key=f"headers_{i}")
                         if block_type == 'http_post':
-                            config['body'] = st.text_area("Тело запроса (JSON)", config.get('body', '{}'), key=f"body_{i}")
+                            config['body'] = st.text_area("Тело запроса (JSON)", 
+                                config.get('body', '{}'), key=f"body_{i}")
                     
                     block['config'] = config
                 
@@ -1332,7 +1470,7 @@ with tabs[4]:
                 
                 def update_progress(idx, node):
                     progress_bar.progress((idx + 1) / len(st.session_state.workflow))
-                    status_text.text(f"Выполняется: {node.get('name', 'Block')}")
+                    status_text.text(f"🔄 Выполняется: {node.get('name', 'Block')}")
                 
                 executor = WorkflowExecutor(st.session_state.workflow, api_key, agent_manager)
                 result = executor.execute(update_progress)
@@ -1343,27 +1481,33 @@ with tabs[4]:
                     st.balloons()
                     st.success(f"✅ Workflow выполнен успешно за {result['execution_time']:.1f} секунд!")
                     
+                    # Обновляем аналитику
+                    st.session_state.analytics['total_executions'] += 1
+                    st.session_state.analytics['successful_executions'] += 1
+                    
                     with st.expander("📋 Результаты выполнения", expanded=True):
                         for res in result['results']:
-                            st.markdown(f"**{res['node']}**")
+                            st.markdown(f"**📌 {res['node']}**")
                             st.json(res['result'])
                             st.markdown("---")
                 else:
+                    st.session_state.analytics['total_executions'] += 1
+                    st.session_state.analytics['failed_executions'] += 1
                     st.error(f"❌ Ошибка: {result['error']}")
         else:
-            st.info("Добавьте блоки слева для создания workflow")
+            st.info("💡 Добавьте блоки из левой колонки для создания workflow")
 
 # ============================================================================
-# ВКЛАДКА 6: УСЛОВИЯ
+# ВКЛАДКА 6: РУССКИЕ УСЛОВИЯ
 # ============================================================================
 
 with tabs[5]:
-    st.subheader("🔀 Условия на русском языке")
+    st.subheader("🔀 Русские условия для workflow")
     
     st.markdown("""
     <div class="info-box">
-    <h4>🎯 Как это работает?</h4>
-    <p>Просто напишите условие так, как вы бы сказали человеку. ИИ сам преобразует его в код!</p>
+    <h4>🎯 Как писать условия на русском?</h4>
+    <p>Просто напишите условие так, как вы бы сказали человеку. ИИ сам преобразует его в исполняемый код!</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1373,40 +1517,49 @@ with tabs[5]:
         st.markdown("### 📝 Примеры условий")
         examples = [
             "если цена больше 1000 то отправить уведомление",
-            "если статус равно 'успех' иначе ошибка",
-            "если количество меньше 5 то пополнить",
-            "если текст содержит 'срочно' то отметить",
-            "если поле пусто то заполнить"
+            "если статус равно 'успех' иначе отправить ошибку",
+            "если количество меньше 5 то пополнить склад",
+            "если текст содержит 'срочно' то отметить как важное",
+            "если поле пусто то заполнить значением по умолчанию",
+            "если сумма между 1000 и 5000 то одобрить"
         ]
         for ex in examples:
             st.code(f"📌 {ex}")
     
     with col2:
-        st.markdown("### 🔧 Проверка условия")
-        test_condition = st.text_area("Напишите ваше условие:", height=100, 
+        st.markdown("### 🔧 Проверьте своё условие")
+        test_condition = st.text_area("Напишите условие:", 
+                                       height=150,
                                        placeholder="например: если температура больше 30 то включить кондиционер")
         
         if test_condition:
             parsed = RussianConditionParser.parse(test_condition)
             
             st.markdown("### 📊 Результат анализа:")
-            st.json({
-                "тип": parsed.get('type'),
-                "оригинал": parsed.get('original'),
-                "сгенерированный_код": parsed.get('code')
-            })
+            
+            col_res1, col_res2 = st.columns(2)
+            with col_res1:
+                st.metric("Тип условия", parsed.get('type', 'unknown'))
+            with col_res2:
+                st.metric("Оригинал", parsed.get('original', '')[:50])
+            
+            if parsed.get('code'):
+                st.success(f"💻 Сгенерированный код: `{parsed['code']}`")
+            else:
+                st.warning("⚠️ Не удалось распознать условие. Попробуйте переформулировать.")
     
     st.markdown("---")
-    st.markdown("### 💡 Синтаксис")
+    
+    st.markdown("### 💡 Доступные операторы")
     st.markdown("""
-    | Что написать | Как понять |
-    |--------------|------------|
-    | `если X больше Y` | X > Y |
-    | `если X меньше Y` | X < Y |
-    | `если X равно Y` | X == Y |
-    | `если X содержит Y` | Y in X |
-    | `если X пусто` | not X |
-    | `если ... то ... иначе ...` | if ... else ... |
+    | Что написать | Как понять | Пример |
+    |--------------|------------|--------|
+    | `больше`, `выше`, `>` | Больше чем | `цена больше 1000` |
+    | `меньше`, `ниже`, `<` | Меньше чем | `количество меньше 5` |
+    | `равно`, `равняется`, `=` | Равно | `статус равно успех` |
+    | `содержит`, `включает` | Содержит подстроку | `текст содержит срочно` |
+    | `пусто`, `не заполнено` | Пустое значение | `поле пусто` |
+    | `между ... и ...` | В диапазоне | `сумма между 1000 и 5000` |
     """)
 
 # ============================================================================
@@ -1431,3 +1584,4 @@ with tabs[6]:
     
     ### 1. Добавление примеров
     Перейдите на вкладку **"ОБУЧЕНИЕ"** и добавьте примеры правильных ответов:
+    
