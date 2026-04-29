@@ -1,8 +1,8 @@
 """
 ================================================================================
-WORKFLOW BUILDER v4.0 "Enterprise" - FIXED VERSION
+КОНСТРУКТОР WORKFLOW PRO v4.0
+Полностью на русском языке | Для новичков | С веб-интерфейсом
 ================================================================================
-FIXED: Removed Cyrillic from code strings to avoid syntax errors
 """
 
 import streamlit as st
@@ -11,29 +11,23 @@ import pandas as pd
 import requests
 from datetime import datetime
 from openai import OpenAI
-import io
-import re
 import traceback
 import time
-import hashlib
-import os
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Tuple
 import plotly.express as px
-import plotly.graph_objects as go
-from pathlib import Path
 
 # ============================================================================
-# PAGE CONFIGURATION
+# НАСТРОЙКА СТРАНИЦЫ
 # ============================================================================
 
 st.set_page_config(
-    page_title="Workflow Builder Pro",
+    page_title="Конструктор Workflow Pro",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Стили CSS
 st.markdown("""
 <style>
     .main-header {
@@ -42,7 +36,6 @@ st.markdown("""
         border-radius: 20px;
         margin-bottom: 2rem;
         text-align: center;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
     .main-header h1 {
         color: white;
@@ -67,19 +60,12 @@ st.markdown("""
         margin: 0.5rem 0;
         color: white;
         border-left: 4px solid #4ECDC4;
-        transition: all 0.3s ease;
-    }
-    .workflow-node:hover {
-        transform: translateX(5px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     }
     .workflow-node-success {
         border-left-color: #00ff88;
-        background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
     }
     .workflow-node-error {
         border-left-color: #ff4444;
-        background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%);
     }
     .info-box {
         background: #1e1e2e;
@@ -88,109 +74,115 @@ st.markdown("""
         border-left: 4px solid #4ECDC4;
         margin: 1rem 0;
     }
+    .success-box {
+        background: #1a2e1a;
+        padding: 1rem;
+        border-radius: 10px;
+        border-left: 4px solid #00ff88;
+        margin: 1rem 0;
+    }
+    .error-box {
+        background: #2e1a1a;
+        padding: 1rem;
+        border-radius: 10px;
+        border-left: 4px solid #ff4444;
+        margin: 1rem 0;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Header
+# Заголовок
 st.markdown("""
 <div class="main-header">
-    <h1>🚀 WORKFLOW BUILDER PRO</h1>
-    <p>No-code Automation | Deep Analysis | Error Checking | Web Deployment</p>
-    <p style="font-size: 0.8rem;">⭐ Free | ⚡ Fast | 🔒 Secure</p>
+    <h1>🚀 КОНСТРУКТОР WORKFLOW PRO</h1>
+    <p>Автоматизация без кода | Глубокий анализ | Проверка ошибок | Веб-развертывание</p>
+    <p style="font-size: 0.9rem;">⭐ Бесплатно | ⚡ Быстро | 🔒 Безопасно</p>
 </div>
 """, unsafe_allow_html=True)
 
 # ============================================================================
-# STORAGE
+# ИНИЦИАЛИЗАЦИЯ ДАННЫХ
 # ============================================================================
 
-class WorkflowStorage:
+if 'workflow' not in st.session_state:
+    st.session_state.workflow = []
+if 'history' not in st.session_state:
+    st.session_state.history = []
+if 'error_logs' not in st.session_state:
+    st.session_state.error_logs = []
+if 'analytics' not in st.session_state:
+    st.session_state.analytics = {
+        'total_executions': 0,
+        'successful_executions': 0,
+        'failed_executions': 0,
+        'total_blocks_executed': 0
+    }
+
+# ============================================================================
+# КЛАСС ДЛЯ ПРОВЕРКИ ОШИБОК
+# ============================================================================
+
+class ПроверщикWorkflow:
+    """Проверяет workflow на ошибки"""
+    
     @staticmethod
-    def init():
-        if 'workflow' not in st.session_state:
-            st.session_state.workflow = []
-        if 'history' not in st.session_state:
-            st.session_state.history = []
-        if 'results' not in st.session_state:
-            st.session_state.results = {}
-        if 'variables' not in st.session_state:
-            st.session_state.variables = {}
-        if 'logs' not in st.session_state:
-            st.session_state.logs = []
-        if 'deployed_apps' not in st.session_state:
-            st.session_state.deployed_apps = []
-        if 'error_logs' not in st.session_state:
-            st.session_state.error_logs = []
-        if 'analytics' not in st.session_state:
-            st.session_state.analytics = {
-                'total_executions': 0,
-                'successful_executions': 0,
-                'failed_executions': 0,
-                'total_nodes_executed': 0,
-                'average_execution_time': 0
-            }
-
-WorkflowStorage.init()
-
-# ============================================================================
-# VALIDATOR
-# ============================================================================
-
-class WorkflowValidator:
-    @staticmethod
-    def validate_workflow(workflow: List[Dict]) -> Tuple[bool, List[str]]:
-        errors = []
-        warnings = []
+    def проверить(workflow: List[Dict]) -> Tuple[bool, List[str]]:
+        ошибки = []
+        предупреждения = []
         
         if not workflow:
-            errors.append("Workflow is empty")
-            return False, errors
+            ошибки.append("❌ Workflow пуст. Добавьте хотя бы один блок.")
+            return False, ошибки
         
-        for i, node in enumerate(workflow):
-            if 'name' not in node:
-                errors.append(f"Block {i+1}: missing name")
-            if 'type' not in node:
-                errors.append(f"Block {i+1}: missing type")
-            if 'config' not in node:
-                errors.append(f"Block {i+1}: missing config")
+        for i, блок in enumerate(workflow):
+            if 'name' not in блок:
+                ошибки.append(f"❌ Блок {i+1}: отсутствует название")
+            if 'type' not in блок:
+                ошибки.append(f"❌ Блок {i+1}: отсутствует тип")
             
-            node_type = node.get('type', '')
+            тип = блок.get('type', '')
             
-            if node_type == 'google_sheets_read':
-                sheet_url = node.get('config', {}).get('sheet_url', '')
-                if not sheet_url:
-                    errors.append(f"Block '{node.get('name', 'Unknown')}': sheet URL required")
-            
-            elif node_type == 'deepseek':
-                if not node.get('config', {}).get('user_prompt'):
-                    warnings.append(f"Block '{node.get('name', 'Unknown')}': empty AI prompt")
-            
-            elif node_type in ['http_get', 'http_post']:
-                url = node.get('config', {}).get('url', '')
+            if тип == 'google_sheets_read':
+                url = блок.get('config', {}).get('sheet_url', '')
                 if not url:
-                    errors.append(f"Block '{node.get('name', 'Unknown')}': URL required")
+                    ошибки.append(f"❌ Блок '{блок.get('name', 'Unknown')}': укажите URL Google Таблицы")
+            
+            elif тип == 'deepseek':
+                if not блок.get('config', {}).get('user_prompt'):
+                    предупреждения.append(f"⚠️ Блок '{блок.get('name', 'Unknown')}': запрос к AI не заполнен")
+            
+            elif тип in ['http_get', 'http_post']:
+                url = блок.get('config', {}).get('url', '')
+                if not url:
+                    ошибки.append(f"❌ Блок '{блок.get('name', 'Unknown')}': укажите URL для запроса")
         
-        return len(errors) == 0, errors + warnings
+        return len(ошибки) == 0, ошибки + предупреждения
 
-class DeepAnalyzer:
+# ============================================================================
+# КЛАСС ДЛЯ АНАЛИЗА
+# ============================================================================
+
+class АнализаторWorkflow:
+    """Анализирует workflow"""
+    
     @staticmethod
-    def analyze(workflow: List[Dict]) -> Dict:
-        analysis = {
-            'total_nodes': len(workflow),
-            'node_types': {},
-            'estimated_time': 0,
-            'complexity': 'Low',
-            'bottlenecks': [],
-            'optimizations': []
+    def анализировать(workflow: List[Dict]) -> Dict:
+        анализ = {
+            'всего_блоков': len(workflow),
+            'типы_блоков': {},
+            'примерное_время': 0,
+            'сложность': 'Низкая',
+            'проблемы': [],
+            'рекомендации': []
         }
         
-        for node in workflow:
-            node_type = node.get('type', 'unknown')
-            analysis['node_types'][node_type] = analysis['node_types'].get(node_type, 0) + 1
+        for блок in workflow:
+            тип = блок.get('type', 'unknown')
+            анализ['типы_блоков'][тип] = анализ['типы_блоков'].get(тип, 0) + 1
         
-        time_estimates = {
+        # Оценка времени
+        время_блоков = {
             'google_sheets_read': 2,
-            'google_sheets_write': 1,
             'deepseek': 5,
             'http_get': 1,
             'http_post': 1,
@@ -201,37 +193,40 @@ class DeepAnalyzer:
             'telegram': 0.5
         }
         
-        for node in workflow:
-            node_type = node.get('type', '')
-            analysis['estimated_time'] += time_estimates.get(node_type, 0.5)
+        for блок in workflow:
+            тип = блок.get('type', '')
+            анализ['примерное_время'] += время_блоков.get(тип, 0.5)
         
-        if analysis['total_nodes'] <= 3:
-            analysis['complexity'] = 'Low (Beginner friendly)'
-        elif analysis['total_nodes'] <= 7:
-            analysis['complexity'] = 'Medium'
+        # Оценка сложности
+        if анализ['всего_блоков'] <= 3:
+            анализ['сложность'] = 'Низкая (для начинающих)'
+        elif анализ['всего_блоков'] <= 7:
+            анализ['сложность'] = 'Средняя'
         else:
-            analysis['complexity'] = 'High (Test recommended)'
+            анализ['сложность'] = 'Высокая (требуется тестирование)'
         
-        if analysis['node_types'].get('deepseek', 0) > 3:
-            analysis['bottlenecks'].append("Many AI blocks - may be slow")
-        if analysis['node_types'].get('loop', 0) > 2:
-            analysis['bottlenecks'].append("Nested loops may slow execution")
+        # Поиск проблем
+        if анализ['типы_блоков'].get('deepseek', 0) > 3:
+            анализ['проблемы'].append("⚠️ Много AI блоков - выполнение может быть медленным")
         
-        return analysis
+        return анализ
 
 # ============================================================================
-# DEPLOYER
+# КЛАСС ДЛЯ РАЗВЕРТЫВАНИЯ
 # ============================================================================
 
-class AppDeployer:
+class Развертыватель:
+    """Генерирует код для развертывания"""
+    
     @staticmethod
-    def generate_deployable_code(workflow: List[Dict]) -> str:
-        code = f'''
+    def сгенерировать_код(workflow: List[Dict]) -> str:
+        код = f'''
 """
-GENERATED WORKFLOW APP
-Generated: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-Total Blocks: {len(workflow)}
+Автоматически сгенерированное приложение Workflow
+Создано: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+Всего блоков: {len(workflow)}
 """
+
 import streamlit as st
 import pandas as pd
 import requests
@@ -239,545 +234,758 @@ from openai import OpenAI
 import json
 from datetime import datetime
 
-st.set_page_config(page_title="My Workflow App", layout="wide")
-st.title("🚀 Automated Workflow App")
+st.set_page_config(page_title="Моё Workflow Приложение", layout="wide")
+st.title("🚀 Автоматизированное приложение")
 
-api_key = st.sidebar.text_input("DeepSeek API Key", type="password")
+# Ввод API ключа
+api_key = st.sidebar.text_input("DeepSeek API Ключ", type="password")
 
-workflow = {json.dumps(workflow, ensure_ascii=False, indent=4)}
+# Определение workflow
+workflow = {json.dumps(workflow, ensure_ascii=False, indent=2)}
 
-def execute_node(node, data, api_key):
-    node_type = node.get('type')
+def выполнить_блок(блок, данные, api_key):
+    """Выполняет один блок workflow"""
+    тип = блок.get('type')
     
-    if node_type == 'google_sheets_read':
-        sheet_url = node.get('config', {{}}).get('sheet_url', '')
-        if sheet_url:
-            if '/d/' in sheet_url:
-                sheet_id = sheet_url.split('/d/')[1].split('/')[0]
+    if тип == 'google_sheets_read':
+        url = блок.get('config', {{}}).get('sheet_url', '')
+        if url:
+            if '/d/' in url:
+                id_таблицы = url.split('/d/')[1].split('/')[0]
             else:
-                sheet_id = sheet_url
-            csv_url = f"https://docs.google.com/spreadsheets/d/{{sheet_id}}/export?format=csv"
+                id_таблицы = url
+            csv_url = f"https://docs.google.com/spreadsheets/d/{{id_таблицы}}/export?format=csv"
             df = pd.read_csv(csv_url)
             return df.to_dict('records')
     
-    elif node_type == 'deepseek':
+    elif тип == 'deepseek':
         if not api_key:
-            return "Error: API key required"
+            return "Ошибка: нужен API ключ"
         client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
-        response = client.chat.completions.create(
+        ответ = client.chat.completions.create(
             model="deepseek-chat",
             messages=[
-                {{"role": "system", "content": node.get('config', {{}}).get('system_prompt', '')}},
-                {{"role": "user", "content": node.get('config', {{}}).get('user_prompt', '')}}
+                {{"role": "system", "content": блок.get('config', {{}}).get('system_prompt', '')}},
+                {{"role": "user", "content": блок.get('config', {{}}).get('user_prompt', '')}}
             ]
         )
-        return response.choices[0].message.content
+        return ответ.choices[0].message.content
     
-    elif node_type in ['http_get', 'http_post']:
-        url = node.get('config', {{}}).get('url', '')
-        resp = requests.get(url) if node_type == 'http_get' else requests.post(url)
-        return resp.json()
+    elif тип in ['http_get', 'http_post']:
+        url = блок.get('config', {{}}).get('url', '')
+        ответ = requests.get(url) if тип == 'http_get' else requests.post(url)
+        return ответ.json()
     
-    return {{"status": "executed"}}
+    return {{"статус": "выполнено"}}
 
-if st.button("🚀 Run Workflow"):
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    results = []
+# Кнопка запуска
+if st.button("🚀 Запустить автоматизацию"):
+    прогресс = st.progress(0)
+    статус = st.empty()
+    результаты = []
     
-    for i, node in enumerate(workflow):
-        progress_bar.progress((i + 1) / len(workflow))
-        status_text.text(f"Running: {{node.get('name', 'Block')}}")
+    for i, блок in enumerate(workflow):
+        прогресс.progress((i + 1) / len(workflow))
+        статус.text(f"Выполняется: {{блок.get('name', 'Блок')}}")
         
         try:
-            result = execute_node(node, results, api_key)
-            results.append(result)
-            st.success(f"Completed: {{node.get('name', 'Block')}}")
+            результат = выполнить_блок(блок, результаты, api_key)
+            результаты.append(результат)
+            st.success(f"✅ {{блок.get('name', 'Блок')}} выполнен")
         except Exception as e:
-            st.error(f"Error: {{str(e)}}")
+            st.error(f"❌ Ошибка: {{str(e)}}")
             break
     
-    status_text.text("Done!")
+    статус.text("✅ Готово!")
     st.balloons()
     
-    st.subheader("Results")
-    for i, result in enumerate(results):
-        with st.expander(f"Block {i+1} Result"):
-            st.json(result)
+    st.subheader("Результаты")
+    for i, результат in enumerate(результаты):
+        with st.expander(f"Результат блока {i+1}"):
+            st.json(результат)
 '''
-        return code
+        return код
 
 # ============================================================================
-# SIDEBAR
+# БОКОВАЯ ПАНЕЛЬ
 # ============================================================================
 
-with st.sider:
-    st.markdown("## 📦 BLOCK LIBRARY")
+with st.sidebar:
+    st.markdown("## 📦 БИБЛИОТЕКА БЛОКОВ")
     
-    api_key = st.text_input("🔑 DeepSeek API Key", type="password")
+    api_key = st.text_input("🔑 DeepSeek API Ключ", type="password", 
+                           help="Получи бесплатно на platform.deepseek.com")
     
     st.markdown("---")
     
-    col1, col2 = st.columns(2)
-    
-    blocks = [
-        ("Google Sheets", "google_sheets_read", "📖"),
-        ("DeepSeek AI", "deepseek", "🧠"),
-        ("HTTP GET", "http_get", "📡"),
-        ("HTTP POST", "http_post", "📤"),
-        ("Condition IF", "condition", "🔀"),
-        ("Loop", "loop", "🔄"),
-        ("Excel/CSV", "excel_read", "📊"),
-        ("Email", "email", "📧"),
-        ("Telegram", "telegram", "📱"),
+    # Кнопки для добавления блоков
+    блоки = [
+        ("📖 Google Таблицы", "google_sheets_read", "Чтение данных из таблицы"),
+        ("🧠 DeepSeek AI", "deepseek", "Анализ данных с помощью ИИ"),
+        ("📡 HTTP GET", "http_get", "Получение данных из API"),
+        ("📤 HTTP POST", "http_post", "Отправка данных в API"),
+        ("🔀 Условие IF", "condition", "Ветвление логики"),
+        ("🔄 Цикл", "loop", "Повторение действий"),
+        ("📊 Excel/CSV", "excel_read", "Загрузка файлов"),
+        ("📧 Email", "email", "Отправка письма"),
+        ("📱 Telegram", "telegram", "Уведомление в Telegram"),
     ]
     
-    for name, type_, icon in blocks:
-        if st.button(f"{icon} {name}", key=f"btn_{type_}", use_container_width=True):
+    for имя, тип, описание in блоки:
+        if st.button(f"{имя}", key=f"btn_{тип}", use_container_width=True):
             st.session_state.workflow.append({
                 "id": len(st.session_state.workflow),
-                "name": name,
-                "icon": icon,
-                "type": type_,
-                "description": f"{name} block",
+                "name": имя.split()[1] if len(имя.split()) > 1 else имя,
+                "icon": имя[0],
+                "type": тип,
+                "description": описание,
                 "config": {},
-                "status": "pending",
-                "created_at": datetime.now().isoformat()
+                "status": "pending"
             })
             st.rerun()
     
     st.markdown("---")
     
-    if st.button("🗑️ Clear Workflow", use_container_width=True):
+    # Управление
+    st.markdown("## 🛠️ УПРАВЛЕНИЕ")
+    
+    if st.button("🗑️ Очистить всё", use_container_width=True):
         st.session_state.workflow = []
         st.rerun()
     
     st.markdown("---")
-    st.metric("Blocks", len(st.session_state.workflow))
-    st.metric("Executions", st.session_state.analytics['total_executions'])
+    
+    # Статистика
+    st.markdown("## 📊 СТАТИСТИКА")
+    st.metric("Всего блоков", len(st.session_state.workflow))
+    st.metric("Запусков", st.session_state.analytics['total_executions'])
+    
+    успех = st.session_state.analytics['successful_executions']
+    всего = st.session_state.analytics['total_executions']
+    процент = (успех / всего * 100) if всего > 0 else 0
+    st.metric("Успешных запусков", f"{процент:.0f}%")
 
 # ============================================================================
-# MAIN TABS
+# ОСНОВНЫЕ ВКЛАДКИ
 # ============================================================================
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "EDITOR", "ANALYSIS", "RUN", "DEPLOY", "HISTORY", "INSTRUCTIONS"
+вкладка1, вкладка2, вкладка3, вкладка4, вкладка5, вкладка6 = st.tabs([
+    "✏️ РЕДАКТОР", "🔍 АНАЛИЗ", "▶️ ЗАПУСК", "🚀 РАЗВЕРНУТЬ", "📜 ИСТОРИЯ", "📖 ИНСТРУКЦИЯ"
 ])
 
 # ============================================================================
-# TAB 1: EDITOR
+# ВКЛАДКА 1: РЕДАКТОР
 # ============================================================================
 
-with tab1:
-    st.subheader("✏️ Workflow Editor")
+with вкладка1:
+    st.subheader("✏️ Редактор workflow")
     
-    if st.session_state.workflow:
-        is_valid, validation_errors = WorkflowValidator.validate_workflow(st.session_state.workflow)
-        if not is_valid:
-            for error in validation_errors:
-                st.warning(error)
+    if not st.session_state.workflow:
+        st.info("💡 Нажмите на любой блок в боковой панели, чтобы начать создание workflow")
+    else:
+        # Проверка на ошибки
+        валиден, ошибки = ПроверщикWorkflow.проверить(st.session_state.workflow)
+        if not валиден:
+            for ошибка in ошибки:
+                st.warning(ошибка)
     
-    for i, node in enumerate(st.session_state.workflow):
-        status_class = ""
-        if node.get('status') == 'success':
-            status_class = "workflow-node-success"
-        elif node.get('status') == 'error':
-            status_class = "workflow-node-error"
+    # Отображение блоков
+    for i, блок in enumerate(st.session_state.workflow):
+        # Определяем стиль
+        стиль = "workflow-node"
+        if блок.get('status') == 'success':
+            стиль = "workflow-node workflow-node-success"
+        elif блок.get('status') == 'error':
+            стиль = "workflow-node workflow-node-error"
         
         st.markdown(f"""
-        <div class="workflow-node {status_class}">
+        <div class="{стиль}">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <span style="font-size: 1.5rem;">{node['icon']}</span>
-                    <span style="font-weight: bold; font-size: 1.2rem; margin-left: 0.5rem;">{node['name']}</span>
-                    <span style="font-size: 0.8rem; opacity: 0.7; margin-left: 1rem;">Step {i+1}</span>
+                    <span style="font-size: 1.5rem;">{блок['icon']}</span>
+                    <span style="font-weight: bold; font-size: 1.2rem;"> {блок['name']}</span>
+                    <span style="font-size: 0.8rem; opacity: 0.7; margin-left: 1rem;">Шаг {i+1}</span>
                 </div>
+                <div style="font-size: 0.8rem;">{блок.get('description', '')}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         
+        # Стрелка между блоками
         if i < len(st.session_state.workflow) - 1:
-            st.markdown('<div style="text-align: center; font-size: 1.2rem;">↓</div>', unsafe_allow_html=True)
+            st.markdown('<div style="text-align: center; font-size: 1.2rem;">▼</div>', unsafe_allow_html=True)
         
-        with st.expander(f"⚙️ Configure {node['name']}"):
+        # Настройки блока
+        with st.expander(f"⚙️ Настроить {блок['name']}"):
             
-            if node['type'] == 'google_sheets_read':
-                node['config']['sheet_url'] = st.text_input("Google Sheet URL", node['config'].get('sheet_url', ''))
-                node['config']['range'] = st.text_input("Range", node['config'].get('range', 'A1:Z100'))
+            if блок['type'] == 'google_sheets_read':
+                блок['config']['sheet_url'] = st.text_input(
+                    "URL Google Таблицы", 
+                    блок['config'].get('sheet_url', ''),
+                    key=f"url_{i}",
+                    help="Скопируйте URL из адресной строки браузера"
+                )
+                блок['config']['range'] = st.text_input(
+                    "Диапазон", 
+                    блок['config'].get('range', 'A1:Z100'),
+                    key=f"range_{i}"
+                )
+                st.caption("💡 Пример: https://docs.google.com/spreadsheets/d/ВАШ_ID_ТАБЛИЦЫ/edit")
             
-            elif node['type'] == 'deepseek':
-                node['config']['system_prompt'] = st.text_area("System Prompt", node['config'].get('system_prompt', 
-                    "You are a professional data analyst. Answer clearly and concisely."), height=100)
-                node['config']['user_prompt'] = st.text_area("User Prompt", node['config'].get('user_prompt', 
-                    "Analyze the data and provide insights."), height=80)
-                node['config']['temperature'] = st.slider("Creativity", 0.0, 1.0, 0.3)
+            elif блок['type'] == 'deepseek':
+                блок['config']['system_prompt'] = st.text_area(
+                    "Инструкция для ИИ", 
+                    блок['config'].get('system_prompt', "Ты профессиональный аналитик данных. Отвечай на русском языке четко и по делу."),
+                    height=80,
+                    key=f"system_{i}"
+                )
+                блок['config']['user_prompt'] = st.text_area(
+                    "Запрос к ИИ", 
+                    блок['config'].get('user_prompt', "Проанализируй данные и сделай выводы."),
+                    height=80,
+                    key=f"user_{i}"
+                )
+                блок['config']['temperature'] = st.slider(
+                    "Креативность", 
+                    0.0, 1.0, 0.3,
+                    key=f"temp_{i}",
+                    help="Чем выше значение, тем более креативные ответы"
+                )
             
-            elif node['type'] in ['http_get', 'http_post']:
-                node['config']['url'] = st.text_input("API URL", node['config'].get('url', ''))
-                node['config']['headers'] = st.text_area("Headers (JSON)", node['config'].get('headers', '{}'))
-                if node['type'] == 'http_post':
-                    node['config']['body'] = st.text_area("Body (JSON)", node['config'].get('body', '{}'))
+            elif блок['type'] in ['http_get', 'http_post']:
+                блок['config']['url'] = st.text_input(
+                    "API URL", 
+                    блок['config'].get('url', ''),
+                    key=f"url_{i}",
+                    help="Например: https://api.example.com/data"
+                )
+                блок['config']['headers'] = st.text_area(
+                    "Заголовки (JSON)", 
+                    блок['config'].get('headers', '{}'),
+                    key=f"headers_{i}",
+                    help='Формат: {"Authorization": "Bearer token"}'
+                )
+                if блок['type'] == 'http_post':
+                    блок['config']['body'] = st.text_area(
+                        "Тело запроса (JSON)", 
+                        блок['config'].get('body', '{}'),
+                        key=f"body_{i}"
+                    )
             
-            elif node['type'] == 'condition':
-                node['config']['condition'] = st.text_input("Condition", node['config'].get('condition', 'value > 100'))
+            elif блок['type'] == 'condition':
+                блок['config']['condition'] = st.text_input(
+                    "Условие", 
+                    блок['config'].get('condition', '{{$json.value}} > 100'),
+                    key=f"cond_{i}",
+                    help="Используйте {{$json.поле}} для доступа к данным"
+                )
+                st.caption("💡 Пример: {{$json.цена}} > 1000")
             
-            elif node['type'] == 'loop':
-                node['config']['items'] = st.text_area("Items (JSON array)", node['config'].get('items', '[1, 2, 3, 4, 5]'), height=100)
-                node['config']['batch_size'] = st.number_input("Batch Size", 1, 100, 10)
+            elif блок['type'] == 'loop':
+                блок['config']['items'] = st.text_area(
+                    "Элементы (JSON массив)", 
+                    блок['config'].get('items', '[1, 2, 3, 4, 5]'),
+                    height=80,
+                    key=f"items_{i}",
+                    help="Массив элементов для перебора"
+                )
+                блок['config']['batch_size'] = st.number_input(
+                    "Размер пачки", 
+                    1, 100, 10,
+                    key=f"batch_{i}"
+                )
             
-            elif node['type'] == 'excel_read':
-                file = st.file_uploader("Upload file", type=['xlsx', 'xls', 'csv'])
-                if file:
-                    node['config']['file'] = file
-                    st.success(f"Uploaded: {file.name}")
+            elif блок['type'] == 'excel_read':
+                загруженный_файл = st.file_uploader(
+                    "Загрузить файл", 
+                    type=['xlsx', 'xls', 'csv'],
+                    key=f"file_{i}"
+                )
+                if загруженный_файл:
+                    блок['config']['file'] = загруженный_файл
+                    st.success(f"✅ {загруженный_файл.name} загружен")
             
-            elif node['type'] == 'email':
-                node['config']['to'] = st.text_input("To", node['config'].get('to', ''))
-                node['config']['subject'] = st.text_input("Subject", node['config'].get('subject', 'Notification'))
-                node['config']['body'] = st.text_area("Message", node['config'].get('body', 'Hello!'))
+            elif блок['type'] == 'email':
+                блок['config']['to'] = st.text_input(
+                    "Кому", 
+                    блок['config'].get('to', ''),
+                    key=f"to_{i}",
+                    help="Email получателя"
+                )
+                блок['config']['subject'] = st.text_input(
+                    "Тема", 
+                    блок['config'].get('subject', 'Уведомление от Workflow'),
+                    key=f"subject_{i}"
+                )
+                блок['config']['body'] = st.text_area(
+                    "Сообщение", 
+                    блок['config'].get('body', 'Ваш workflow успешно выполнен!'),
+                    height=80,
+                    key=f"body_{i}"
+                )
             
-            elif node['type'] == 'telegram':
-                node['config']['bot_token'] = st.text_input("Bot Token", node['config'].get('bot_token', ''), type="password")
-                node['config']['chat_id'] = st.text_input("Chat ID", node['config'].get('chat_id', ''))
-                node['config']['message'] = st.text_area("Message", node['config'].get('message', 'Hello!'))
+            elif блок['type'] == 'telegram':
+                блок['config']['bot_token'] = st.text_input(
+                    "Bot Token", 
+                    блок['config'].get('bot_token', ''),
+                    type="password",
+                    key=f"token_{i}",
+                    help="Получите у @BotFather в Telegram"
+                )
+                блок['config']['chat_id'] = st.text_input(
+                    "Chat ID", 
+                    блок['config'].get('chat_id', ''),
+                    key=f"chat_{i}",
+                    help="ID чата или пользователя"
+                )
+                блок['config']['message'] = st.text_area(
+                    "Сообщение", 
+                    блок['config'].get('message', '✅ Workflow выполнен!'),
+                    height=80,
+                    key=f"msg_{i}"
+                )
             
-            if st.button(f"Delete Block", key=f"del_{i}"):
+            # Кнопка удаления
+            if st.button(f"🗑️ Удалить блок", key=f"del_{i}"):
                 st.session_state.workflow.pop(i)
                 st.rerun()
 
 # ============================================================================
-# TAB 2: ANALYSIS
+# ВКЛАДКА 2: АНАЛИЗ
 # ============================================================================
 
-with tab2:
-    st.subheader("🔍 Deep Analysis")
+with вкладка2:
+    st.subheader("🔍 Глубокий анализ workflow")
     
     if not st.session_state.workflow:
-        st.info("Add blocks to your workflow first")
+        st.info("Сначала добавьте блоки в workflow")
     else:
-        analysis = DeepAnalyzer.analyze(st.session_state.workflow)
+        # Проводим анализ
+        анализ = АнализаторWorkflow.анализировать(st.session_state.workflow)
         
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.markdown(f'<div class="stat-card"><h3>{analysis["total_nodes"]}</h3><p>Total Blocks</p></div>', unsafe_allow_html=True)
-        with col2:
-            st.markdown(f'<div class="stat-card"><h3>{analysis["estimated_time"]:.1f}s</h3><p>Est. Time</p></div>', unsafe_allow_html=True)
-        with col3:
-            st.markdown(f'<div class="stat-card"><h3>{analysis["complexity"]}</h3><p>Complexity</p></div>', unsafe_allow_html=True)
-        with col4:
-            success_rate = (st.session_state.analytics['successful_executions'] / max(1, st.session_state.analytics['total_executions']) * 100)
-            st.markdown(f'<div class="stat-card"><h3>{success_rate:.0f}%</h3><p>Success Rate</p></div>', unsafe_allow_html=True)
+        # Отображение метрик
+        колонка1, колонка2, колонка3, колонка4 = st.columns(4)
+        with колонка1:
+            st.markdown(f'<div class="stat-card"><h3>{анализ["всего_блоков"]}</h3><p>Всего блоков</p></div>', unsafe_allow_html=True)
+        with колонка2:
+            st.markdown(f'<div class="stat-card"><h3>{анализ["примерное_время"]:.1f}с</h3><p>Примерное время</p></div>', unsafe_allow_html=True)
+        with колонка3:
+            st.markdown(f'<div class="stat-card"><h3>{анализ["сложность"]}</h3><p>Сложность</p></div>', unsafe_allow_html=True)
+        with колонка4:
+            процент = (st.session_state.analytics['successful_executions'] / max(1, st.session_state.analytics['total_executions']) * 100)
+            st.markdown(f'<div class="stat-card"><h3>{процент:.0f}%</h3><p>Успешных запусков</p></div>', unsafe_allow_html=True)
         
-        if analysis['node_types']:
-            df_types = pd.DataFrame(list(analysis['node_types'].items()), columns=['Type', 'Count'])
-            fig = px.bar(df_types, x='Type', y='Count', title="Block Distribution")
+        st.markdown("---")
+        
+        # График типов блоков
+        if анализ['типы_блоков']:
+            st.subheader("📊 Распределение блоков")
+            df_типы = pd.DataFrame(list(анализ['типы_блоков'].items()), columns=['Тип', 'Количество'])
+            fig = px.bar(df_типы, x='Тип', y='Количество', title="Типы блоков в workflow")
             st.plotly_chart(fig, use_container_width=True)
         
-        if analysis['bottlenecks']:
-            st.subheader("⚠️ Potential Issues")
-            for bottleneck in analysis['bottlenecks']:
-                st.warning(bottleneck)
+        # Проблемы
+        if анализ['проблемы']:
+            st.subheader("⚠️ Потенциальные проблемы")
+            for проблема in анализ['проблемы']:
+                st.warning(проблема)
+        
+        # Визуализация последовательности
+        st.subheader("📈 Схема workflow")
+        шаги = [f"{i+1}. {блок['icon']} {блок['name']}" for i, блок in enumerate(st.session_state.workflow)]
+        st.code(" → ".join(шаги))
 
 # ============================================================================
-# TAB 3: RUN
+# ВКЛАДКА 3: ЗАПУСК
 # ============================================================================
 
-with tab3:
-    st.subheader("▶️ Run Automation")
+with вкладка3:
+    st.subheader("▶️ Запуск автоматизации")
     
     if not st.session_state.workflow:
-        st.warning("Workflow is empty. Add blocks in the EDITOR tab")
+        st.warning("⚠️ Workflow пуст. Добавьте блоки на вкладке РЕДАКТОР")
     else:
-        is_valid, issues = WorkflowValidator.validate_workflow(st.session_state.workflow)
+        # Проверка перед запуском
+        валиден, проблемы = ПроверщикWorkflow.проверить(st.session_state.workflow)
         
-        if not is_valid:
-            st.error("Errors detected. Please fix them before running:")
-            for issue in issues:
-                st.write(f"- {issue}")
+        if not валиден:
+            st.error("❌ Обнаружены ошибки. Исправьте их перед запуском:")
+            for проблема in проблемы:
+                st.write(f"- {проблема}")
         else:
-            if issues:
-                for issue in issues:
-                    st.warning(issue)
+            if проблемы:
+                for проблема in проблемы:
+                    st.warning(проблема)
             
-            if st.button("🚀 RUN WORKFLOW", type="primary", use_container_width=True):
-                start_time = time.time()
-                progress_bar = st.progress(0)
-                status_text = st.empty()
+            # Кнопка запуска
+            if st.button("🚀 ЗАПУСТИТЬ WORKFLOW", type="primary", use_container_width=True):
+                время_старта = time.time()
+                прогресс = st.progress(0)
+                статус_текст = st.empty()
+                контейнер_логов = st.container()
                 
-                workflow_data = {}
-                success_count = 0
-                execution_logs = []
+                данные_workflow = {}
+                успешно = 0
+                логи = []
                 
-                for idx, node in enumerate(st.session_state.workflow):
-                    progress = (idx + 0.5) / len(st.session_state.workflow)
-                    progress_bar.progress(progress)
-                    status_text.text(f"Running: {node['icon']} {node['name']}...")
+                for индекс, блок in enumerate(st.session_state.workflow):
+                    прогресс.progress((индекс + 0.5) / len(st.session_state.workflow))
+                    статус_текст.text(f"🔄 {блок['icon']} {блок['name']}...")
                     
                     try:
-                        result = None
-                        execution_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] Starting {node['name']}")
+                        результат = None
+                        логи.append(f"[{datetime.now().strftime('%H:%M:%S')}] Запуск {блок['name']}")
                         
-                        if node['type'] == 'google_sheets_read':
-                            sheet_url = node['config'].get('sheet_url', '')
-                            if sheet_url:
-                                if '/d/' in sheet_url:
-                                    sheet_id = sheet_url.split('/d/')[1].split('/')[0]
+                        # Выполнение блока
+                        if блок['type'] == 'google_sheets_read':
+                            url = блок['config'].get('sheet_url', '')
+                            if url:
+                                if '/d/' in url:
+                                    id_таблицы = url.split('/d/')[1].split('/')[0]
                                 else:
-                                    sheet_id = sheet_url
-                                csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
+                                    id_таблицы = url
+                                csv_url = f"https://docs.google.com/spreadsheets/d/{id_таблицы}/export?format=csv"
                                 df = pd.read_csv(csv_url)
-                                result = df.to_dict('records')
-                                st.success(f"Loaded {len(result)} rows")
+                                результат = df.to_dict('records')
+                                st.success(f"✅ Загружено {len(результат)} строк")
                         
-                        elif node['type'] == 'deepseek':
+                        elif блок['type'] == 'deepseek':
                             if api_key:
-                                client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
-                                user_prompt = node['config'].get('user_prompt', '')
+                                клиент = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
+                                запрос = блок['config'].get('user_prompt', '')
                                 
-                                response = client.chat.completions.create(
+                                ответ = клиент.chat.completions.create(
                                     model="deepseek-chat",
                                     messages=[
-                                        {"role": "system", "content": node['config'].get('system_prompt', '')},
-                                        {"role": "user", "content": user_prompt}
+                                        {"role": "system", "content": блок['config'].get('system_prompt', '')},
+                                        {"role": "user", "content": запрос}
                                     ],
-                                    temperature=node['config'].get('temperature', 0.3)
+                                    temperature=блок['config'].get('temperature', 0.3)
                                 )
-                                result = response.choices[0].message.content
-                                st.success(f"AI Response: {result[:100]}...")
+                                результат = ответ.choices[0].message.content
+                                st.success(f"✅ AI ответ: {результат[:100]}...")
                             else:
-                                st.warning("API key not provided")
+                                st.warning("⚠️ API ключ не указан, AI блок пропущен")
                         
-                        elif node['type'] in ['http_get', 'http_post']:
-                            url = node['config'].get('url', '')
-                            headers = json.loads(node['config'].get('headers', '{}'))
-                            if node['type'] == 'http_get':
-                                resp = requests.get(url, headers=headers, timeout=30)
+                        elif блок['type'] in ['http_get', 'http_post']:
+                            url = блок['config'].get('url', '')
+                            заголовки = json.loads(блок['config'].get('headers', '{}'))
+                            if блок['type'] == 'http_get':
+                                ответ = requests.get(url, headers=заголовки, timeout=30)
                             else:
-                                body = json.loads(node['config'].get('body', '{}'))
-                                resp = requests.post(url, headers=headers, json=body, timeout=30)
-                            result = resp.json()
-                            st.success(f"HTTP {resp.status_code}")
+                                тело = json.loads(блок['config'].get('body', '{}'))
+                                ответ = requests.post(url, headers=заголовки, json=тело, timeout=30)
+                            результат = ответ.json()
+                            st.success(f"✅ HTTP {ответ.status_code}")
                         
-                        elif node['type'] == 'condition':
-                            condition = node['config'].get('condition', '')
-                            result = {"condition": condition, "result": True}
-                            st.success(f"Condition: {condition}")
+                        elif блок['type'] == 'condition':
+                            условие = блок['config'].get('condition', '')
+                            результат = {"условие": условие, "результат": True}
+                            st.success(f"✅ Условие: {условие}")
                         
-                        elif node['type'] == 'loop':
-                            items = json.loads(node['config'].get('items', '[]'))
-                            result = {"items": items, "count": len(items)}
-                            st.success(f"Loop: {len(items)} items")
+                        elif блок['type'] == 'loop':
+                            элементы = json.loads(блок['config'].get('items', '[]'))
+                            результат = {"элементы": элементы, "количество": len(элементы)}
+                            st.success(f"✅ Цикл: {len(элементы)} элементов")
                         
-                        elif node['type'] == 'excel_read':
-                            file = node['config'].get('file')
-                            if file:
-                                if file.name.endswith('.csv'):
-                                    df = pd.read_csv(file)
+                        elif блок['type'] == 'excel_read':
+                            файл = блок['config'].get('file')
+                            if файл:
+                                if файл.name.endswith('.csv'):
+                                    df = pd.read_csv(файл)
                                 else:
-                                    df = pd.read_excel(file)
-                                result = df.to_dict('records')
-                                st.success(f"Loaded {len(result)} rows")
+                                    df = pd.read_excel(файл)
+                                результат = df.to_dict('records')
+                                st.success(f"✅ Загружено {len(результат)} строк")
                         
-                        node['status'] = 'success'
-                        node['result'] = result
-                        if isinstance(result, dict):
-                            workflow_data.update(result)
-                        else:
-                            workflow_data['data'] = result
-                        success_count += 1
+                        elif блок['type'] == 'email':
+                            st.info("📧 Отправка email (демо-режим)")
+                            результат = {"статус": "email готов к отправке"}
+                            st.success("✅ Email подготовлен")
                         
-                        execution_logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] Completed {node['name']}")
+                        elif блок['type'] == 'telegram':
+                            st.info("📱 Отправка в Telegram (демо-режим)")
+                            результат = {"статус": "сообщение готово"}
+                            st.success("✅ Telegram уведомление подготовлено")
+                        
+                        # Сохраняем результат
+                        блок['status'] = 'success'
+                        блок['result'] = результат
+                        if isinstance(результат, dict):
+                            данные_workflow.update(результат)
+                        elif результат is not None:
+                            данные_workflow['data'] = результат
+                        успешно += 1
+                        
+                        логи.append(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ {блок['name']} выполнен")
                         
                     except Exception as e:
-                        node['status'] = 'error'
-                        node['error'] = str(e)
-                        error_log = f"[{datetime.now().strftime('%H:%M:%S')}] Error in {node['name']}: {str(e)}"
-                        execution_logs.append(error_log)
+                        блок['status'] = 'error'
+                        блок['error'] = str(e)
+                        логи.append(f"[{datetime.now().strftime('%H:%M:%S')}] ❌ Ошибка в {блок['name']}: {str(e)}")
                         st.session_state.error_logs.append({
                             "timestamp": datetime.now().isoformat(),
-                            "node": node['name'],
-                            "error": str(e),
-                            "traceback": traceback.format_exc()
+                            "блок": блок['name'],
+                            "ошибка": str(e),
+                            "детали": traceback.format_exc()
                         })
-                        st.error(f"Error: {str(e)}")
+                        st.error(f"❌ Ошибка: {str(e)}")
                         break
                 
-                execution_time = time.time() - start_time
-                progress_bar.progress(1.0)
+                # Завершение
+                время_выполнения = time.time() - время_старта
+                прогресс.progress(1.0)
                 
+                # Обновляем аналитику
                 st.session_state.analytics['total_executions'] += 1
-                if success_count == len(st.session_state.workflow):
+                if успешно == len(st.session_state.workflow):
                     st.session_state.analytics['successful_executions'] += 1
                 else:
                     st.session_state.analytics['failed_executions'] += 1
-                st.session_state.analytics['total_nodes_executed'] += success_count
+                st.session_state.analytics['total_blocks_executed'] += успешно
                 
+                # Сохраняем в историю
                 st.session_state.history.append({
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "nodes": len(st.session_state.workflow),
-                    "success": success_count == len(st.session_state.workflow),
-                    "success_count": success_count,
-                    "execution_time": round(execution_time, 2),
-                    "logs": execution_logs,
-                    "results": {n['name']: n.get('result') for n in st.session_state.workflow if n.get('result')}
+                    "блоков": len(st.session_state.workflow),
+                    "успех": успешно == len(st.session_state.workflow),
+                    "успешно_выполнено": успешно,
+                    "время": round(время_выполнения, 2),
+                    "логи": логи
                 })
                 
-                if success_count == len(st.session_state.workflow):
+                if успешно == len(st.session_state.workflow):
                     st.balloons()
-                    st.success(f"SUCCESS! Completed in {execution_time:.1f} seconds")
+                    st.success(f"🎉 УСПЕХ! Workflow выполнен за {время_выполнения:.1f} секунд")
                 else:
-                    st.warning(f"Completed {success_count} of {len(st.session_state.workflow)} blocks")
+                    st.warning(f"⚠️ Выполнено {успешно} из {len(st.session_state.workflow)} блоков")
+                
+                # Показываем логи
+                with st.expander("📋 Детальные логи", expanded=False):
+                    for лог in логи:
+                        st.text(лог)
 
 # ============================================================================
-# TAB 4: DEPLOY
+# ВКЛАДКА 4: РАЗВЕРНУТЬ
 # ============================================================================
 
-with tab4:
-    st.subheader("🚀 Web Deployment")
+with вкладка4:
+    st.subheader("🚀 Развертывание через веб-интерфейс")
     
     if not st.session_state.workflow:
-        st.info("Create a workflow first")
+        st.info("💡 Сначала создайте workflow, который хотите развернуть")
     else:
-        if st.button("Generate App Code", use_container_width=True):
-            deploy_code = AppDeployer.generate_deployable_code(st.session_state.workflow)
-            st.session_state.generated_app_code = deploy_code
-            st.success("Code generated!")
+        st.markdown("""
+        <div class="info-box">
+        <h4>🎯 Что вы получите?</h4>
+        <p>Мы сгенерируем полноценное Streamlit-приложение на основе вашего workflow, 
+        которое можно бесплатно развернуть в интернете!</p>
+        </div>
+        """, unsafe_allow_html=True)
         
-        if 'generated_app_code' in st.session_state:
-            st.subheader("Generated Application Code")
-            st.code(st.session_state.generated_app_code, language="python")
+        колонка1, колонка2 = st.columns(2)
+        
+        with колонка1:
+            if st.button("🔧 Сгенерировать код приложения", use_container_width=True):
+                код = Развертыватель.сгенерировать_код(st.session_state.workflow)
+                st.session_state.сгенерированный_код = код
+                st.success("✅ Код сгенерирован!")
+        
+        with колонка2:
+            if st.button("📋 Показать инструкцию", use_container_width=True):
+                st.session_state.показать_инструкцию = True
+        
+        if 'сгенерированный_код' in st.session_state:
+            st.subheader("📄 Сгенерированный код приложения")
+            st.code(st.session_state.сгенерированный_код, language="python")
             
             st.download_button(
-                label="Download app.py",
-                data=st.session_state.generated_app_code,
+                label="📥 Скачать app.py",
+                data=st.session_state.сгенерированный_код,
                 file_name="workflow_app.py",
                 mime="text/x-python"
             )
             
-            # Create requirements file
-            requirements = """
-streamlit>=1.28.0
+            # Создаем requirements.txt
+            requirements = """streamlit>=1.28.0
 openai>=1.0.0
 pandas>=2.0.0
 openpyxl>=3.1.0
 requests>=2.31.0
-"""
+plotly>=5.17.0"""
+            
             st.download_button(
-                label="Download requirements.txt",
+                label="📥 Скачать requirements.txt",
                 data=requirements,
                 file_name="requirements.txt",
                 mime="text/plain"
             )
         
-        st.markdown("---")
-        st.markdown("""
-        ### Deployment Instructions
-        
-        1. **Deploy on Streamlit Cloud (Free)**
-           - Upload files to GitHub
-           - Go to share.streamlit.io
-           - Connect your repository
-           - Click Deploy
-        
-        2. **Deploy on Render (Free)**
-           - Go to render.com
-           - Create new Web Service
-           - Connect GitHub
-           - Build Command: `pip install -r requirements.txt`
-           - Start Command: `streamlit run app.py`
-        """)
+        if st.session_state.get('показать_инструкцию', False):
+            st.markdown("---")
+            st.subheader("📖 Инструкция по развертыванию")
+            st.markdown("""
+            ### 🚀 Развертывание на Streamlit Cloud (БЕСПЛАТНО)
+            
+            **Шаг 1:** Создайте папку `my_workflow_app`
+            
+            **Шаг 2:** Сохраните файлы:
+            - `app.py` (скачайте выше)
+            - `requirements.txt` (скачайте выше)
+            
+            **Шаг 3:** Загрузите на GitHub
+            1. Создайте новый репозиторий
+            2. Загрузите оба файла
+            3. Нажмите "Commit changes"
+            
+            **Шаг 4:** Разверните на Streamlit Cloud
+            1. Перейдите на [share.streamlit.io](https://share.streamlit.io)
+            2. Нажмите "New app"
+            3. Выберите ваш репозиторий
+            4. Нажмите "Deploy"
+            
+            **Шаг 5:** Готово! Ваше приложение будет доступно по ссылке:
+            `https://ваше-название.streamlit.app`
+            
+            ### 🌐 Альтернативные платформы
+            
+            | Платформа | Стоимость | Сложность |
+            |-----------|-----------|-----------|
+            | Render | Бесплатно | Средняя |
+            | Heroku | Платно | Низкая |
+            | Docker | Бесплатно | Высокая |
+            """)
 
 # ============================================================================
-# TAB 5: HISTORY
+# ВКЛАДКА 5: ИСТОРИЯ
 # ============================================================================
 
-with tab5:
-    st.subheader("📜 Execution History")
+with вкладка5:
+    st.subheader("📜 История выполнения")
     
     if st.session_state.history:
-        for run in reversed(st.session_state.history[-20:]):
-            status_icon = "✅" if run['success'] else "❌"
-            with st.expander(f"{status_icon} {run['timestamp']} - {run['nodes']} blocks ({run['execution_time']}s)"):
-                st.markdown(f"**Success Rate:** {run['success_count']}/{run['nodes']}")
-                if run.get('logs'):
-                    for log in run['logs'][-5:]:
-                        st.text(log)
+        for запуск in reversed(st.session_state.history[-20:]):
+            иконка = "✅" if запуск['успех'] else "❌"
+            with st.expander(f"{иконка} {запуск['timestamp']} - {запуск['блоков']} блоков ({запуск['время']}с)"):
+                st.markdown(f"**Успешно выполнено:** {запуск['успешно_выполнено']}/{запуск['блоков']}")
+                if запуск.get('логи'):
+                    st.markdown("**Логи выполнения:**")
+                    for лог in запуск['логи'][-5:]:
+                        st.text(лог)
     else:
-        st.info("No executions yet")
+        st.info("📭 Пока нет выполненных запусков. Запустите workflow на вкладке ЗАПУСК")
 
 # ============================================================================
-# TAB 6: INSTRUCTIONS
+# ВКЛАДКА 6: ИНСТРУКЦИЯ
 # ============================================================================
 
-with tab6:
-    st.subheader("📖 Complete Beginner's Guide")
+with вкладка6:
+    st.subheader("📖 Полная инструкция для новичков")
     
     st.markdown("""
-    ## 🎯 What is Workflow Builder?
+    ## 🎯 Что такое Workflow Builder?
     
-    Workflow Builder is a visual automation constructor. Connect blocks to create automations without writing code!
+    **Workflow Builder** — это визуальный конструктор автоматизаций. Вы соединяете блоки (шаги) и получаете готовую автоматизацию **без единой строки кода**!
     
-    ## 📝 How to Create Your First Automation?
+    ---
     
-    ### Example: Automatic Google Sheets Analysis
+    ## 📝 Как создать первую автоматизацию?
     
-    **Step 1:** Add **Google Sheets** block
-    - Paste your sheet URL
-    - Set range (e.g., A1:E100)
+    ### Пример: Автоматический анализ данных из Google Таблицы
     
-    **Step 2:** Add **DeepSeek AI** block
-    - Write System Prompt: "You are a data analyst"
-    - Write User Prompt: "Analyze this data"
+    #### Шаг 1: Добавьте блок **"Google Таблицы"**
+    - Нажмите на кнопку "📖 Google Таблицы" в боковой панели
+    - Вставьте URL вашей таблицы
+    - Укажите диапазон (например: A1:E100)
     
-    **Step 3:** Add **Email** block
-    - Enter recipient email
-    - Write subject and message
+    #### Шаг 2: Добавьте блок **"DeepSeek AI"**
+    - Нажмите "🧠 DeepSeek AI"
+    - Напишите System Prompt: *"Ты аналитик данных"*
+    - Напишите User Prompt: *"Проанализируй данные и сделай выводы"*
     
-    **Step 4:** Click **RUN WORKFLOW**
+    #### Шаг 3: Добавьте блок **"Email"**
+    - Нажмите "📧 Email"
+    - Укажите email получателя
+    - Напишите тему и сообщение
     
-    Done! The automation fetches data, analyzes it, and sends the report!
+    #### Шаг 4: Запустите!
+    - Перейдите на вкладку **"ЗАПУСК"**
+    - Нажмите **"ЗАПУСТИТЬ WORKFLOW"**
     
-    ## 💡 Pro Tips
+    **Готово!** Workflow сам загрузит данные, проанализирует и отправит отчёт!
     
-    ### Getting DeepSeek API Key
-    1. Go to platform.deepseek.com
-    2. Register for free
-    3. Go to API Keys section
-    4. Create new key and copy it
+    ---
     
-    ### Getting Google Sheet URL
-    1. Open your Google Sheet
-    2. Copy URL from browser address bar
-    3. Paste in the sheet URL field
+    ## 💡 Полезные советы
     
-    ## 🔧 Common Errors & Solutions
+    ### 🔑 Как получить API ключ DeepSeek?
+    1. Перейдите на [platform.deepseek.com](https://platform.deepseek.com)
+    2. Зарегистрируйтесь (бесплатно)
+    3. Перейдите в раздел "API Keys"
+    4. Нажмите "Create new API key"
+    5. Скопируйте ключ и вставьте в боковую панель
     
-    | Error | Solution |
-    |-------|----------|
-    | Sheet URL not provided | Paste URL in Google Sheets block |
-    | API key missing | Enter API key in sidebar |
-    | Invalid JSON | Use double quotes for JSON |
-    | Timeout | Check internet connection |
+    ### 📊 Как получить URL Google Таблицы?
+    1. Откройте Google Таблицу
+    2. Скопируйте URL из адресной строки браузера
+    3. Пример: `https://docs.google.com/spreadsheets/d/1ABC123/edit`
+    4. Вставьте в настройках блока
     
-    ## 🚀 Deploy Your App
+    ### 🔄 Как передавать данные между блоками?
+    Используйте `{{$json.поле}}` где `поле` — это название из предыдущего блока.
     
-    When your workflow is ready:
-    1. Go to **DEPLOY** tab
-    2. Click **Generate App Code**
-    3. Download `app.py` and `requirements.txt`
-    4. Upload to GitHub
-    5. Deploy on Streamlit Cloud (free!)
+    Пример: `{{$json.цена}} > 1000`
     
-    **Your app will be live 24/7!**
+    ---
+    
+    ## 🔧 Возможные ошибки и их решение
+    
+    | Ошибка | Решение |
+    |--------|---------|
+    | ❌ URL таблицы не указан | Вставьте URL в настройках блока Google Таблицы |
+    | ❌ API ключ не указан | Введите API ключ в боковой панели |
+    | ❌ Неверный JSON | Используйте двойные кавычки: `{"key": "value"}` |
+    | ⏰ Таймаут запроса | Проверьте интернет соединение |
+    | 🔒 Доступ запрещен | Проверьте права доступа к таблице |
+    
+    ---
+    
+    ## 🚀 Развертывание готового приложения
+    
+    Когда ваш workflow готов, перейдите на вкладку **"РАЗВЕРНУТЬ"**:
+    
+    1. Нажмите **"Сгенерировать код приложения"**
+    2. Скачайте `app.py` и `requirements.txt`
+    3. Загрузите файлы на GitHub
+    4. Разверните на Streamlit Cloud (бесплатно!)
+    
+    **Ваше приложение будет доступно онлайн 24/7!**
+    
+    ---
+    
+    ## 📞 Нужна помощь?
+    
+    - 📚 Документация: [docs.workflow-builder.com](https://docs.workflow-builder.com)
+    - 💬 Telegram: @workflow_builder
+    - 📧 Email: support@workflow-builder.com
+    - ⭐ GitHub: поставьте звезду, если понравилось!
+    
+    ---
+    
+    ## 🎉 Поздравляю!
+    
+    Вы готовы создавать свои автоматизации. Начните с простого и постепенно усложняйте workflow. 
+    Успехов в автоматизации! 🚀
     """)
 
 # ============================================================================
-# FOOTER
+# ПОДВАЛ
 # ============================================================================
 
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #888; padding: 1rem;">
-    <p>🚀 Workflow Builder Pro v4.0 | Build automation in 5 minutes | 🔒 Free & Unlimited</p>
+    <p>🚀 Workflow Builder Pro | Создайте свою автоматизацию за 5 минут | 🔒 Бесплатно</p>
+    <p style="font-size: 0.8rem;">⭐ Если понравилось, поставьте звезду на GitHub | 📧 support@workflow-builder.com</p>
 </div>
 """, unsafe_allow_html=True)
