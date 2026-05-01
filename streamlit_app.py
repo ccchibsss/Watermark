@@ -1741,7 +1741,8 @@ with tabs[4]:
                         config['subject'] = st.text_input("Тема", config.get('subject', 'Уведомление'), key=f"subj_{i}")
                         config['body'] = st.text_area("Сообщение", config.get('body', ''), height=80, key=f"body_{i}")
                         config['sender_email'] = st.text_input("Email отправителя", config.get('sender_email', sender_email), key=f"from_{i}")
-                        config['sender_password'] = st.text_input("Пароль", type="password", config.get('sender_password', sender_password), key=f"pass_{i}")
+                        # ИСПРАВЛЕННАЯ СТРОКА: позиционные аргументы перед именованными
+                        config['sender_password'] = st.text_input("Пароль", config.get('sender_password', sender_password), type="password", key=f"pass_{i}")
                         st.caption("💡 Используйте {{переменная}} для подстановки из контекста")
                     
                     elif block_type == 'voice_input':
