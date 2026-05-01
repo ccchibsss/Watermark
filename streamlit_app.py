@@ -202,17 +202,17 @@ try:
 except:
     pass
 
-# Стили CSS (полностью переработаны для тёмной темы и читаемости)
+# Стили CSS (СВЕТЛАЯ ТЕМА, ТЕКСТ ВИДИМЫЙ)
 st.markdown(f"""
 <style>
-    /* ===== ТЁМНАЯ ТЕМА ПО УМОЛЧАНИЮ ===== */
+    /* ===== СВЕТЛАЯ ТЕМА ===== */
     [data-testid="stAppViewContainer"], 
     [data-testid="stSidebar"] {{
-        background-color: #0e1117;
+        background-color: #ffffff;
     }}
     [data-testid="stSidebar"] {{
-        background-color: #1a1a2e;
-        color: #fafafa;
+        background-color: #f0f2f6;
+        color: #000033;
     }}
     /* Текст в боковой панели */
     [data-testid="stSidebar"] .stMarkdown, 
@@ -221,12 +221,12 @@ st.markdown(f"""
     [data-testid="stSidebar"] .stTextArea textarea,
     [data-testid="stSidebar"] .stButton button,
     [data-testid="stSidebar"] .stSelectbox label {{
-        color: #fafafa !important;
+        color: #000033 !important;
     }}
     [data-testid="stSidebar"] .stTextInput input, 
     [data-testid="stSidebar"] .stTextArea textarea {{
-        background: rgba(255,255,255,0.1) !important;
-        border: 1px solid rgba(255,255,255,0.2) !important;
+        background: rgba(0,0,0,0.05) !important;
+        border: 1px solid rgba(0,0,0,0.2) !important;
     }}
     [data-testid="stSidebar"] .stButton button {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -236,17 +236,17 @@ st.markdown(f"""
 
     /* Основные заголовки и текст */
     .stMarkdown, .stText, .stCaption, label, .stSelectbox label, .stCheckbox label {{
-        color: #e0e0e0;
+        color: #000033;
     }}
 
     /* Поля ввода глобально */
     input, textarea {{
-        color: #e0e0e0 !important;
-        background: rgba(255,255,255,0.08) !important;
-        border: 1px solid rgba(255,255,255,0.15) !important;
+        color: #000033 !important;
+        background: rgba(0,0,0,0.03) !important;
+        border: 1px solid rgba(0,0,0,0.2) !important;
     }}
     input::placeholder, textarea::placeholder {{
-        color: rgba(255,255,255,0.5) !important;
+        color: rgba(0,0,0,0.4) !important;
     }}
 
     /* Мобильная адаптация */
@@ -303,7 +303,7 @@ st.markdown(f"""
         margin-top: 0.5rem;
     }}
     .agent-card {{
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        background: linear-gradient(135deg, #e6e6fa 0%, #d8bfd8 100%);
         border-radius: 15px;
         padding: 1rem;
         margin: 0.5rem 0;
@@ -313,11 +313,11 @@ st.markdown(f"""
     }}
     .agent-card:hover {{
         transform: translateX(5px);
-        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
     }}
     .agent-card-selected {{
         border-left-color: #00ff88;
-        background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
+        background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
     }}
     .stat-card {{
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -340,66 +340,66 @@ st.markdown(f"""
         margin: 0;
     }}
     .memory-box {{
-        background: #1e1e2e;
+        background: #f3e5f5;
         padding: 1rem;
         border-radius: 10px;
         border-left: 4px solid #ffa500;
         margin: 0.5rem 0;
-        color: white;
+        color: #000033;
     }}
     .training-example {{
-        background: #2a2a3e;
+        background: #e8eaf6;
         padding: 0.8rem;
         border-radius: 8px;
         margin: 0.3rem 0;
         font-size: 0.9rem;
-        color: white;
+        color: #000033;
     }}
     .workflow-node {{
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        background: linear-gradient(135deg, #e6e6fa 0%, #d8bfd8 100%);
         border-radius: 15px;
         padding: 1rem;
         margin: 0.5rem 0;
-        color: white;
+        color: #000033;
         border-left: 4px solid #4ECDC4;
         transition: all 0.3s;
     }}
     .workflow-node:hover {{
         transform: translateX(5px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
     }}
     .workflow-node-success {{
         border-left-color: #00ff88;
-        background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
+        background: linear-gradient(135deg, #c8e6c9 0%, #a5d6a7 100%);
     }}
     .workflow-node-error {{
         border-left-color: #ff4444;
-        background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%);
+        background: linear-gradient(135deg, #ffcdd2 0%, #ef9a9a 100%);
     }}
     .info-box {{
-        background: #1e1e2e;
+        background: #e8eaf6;
         padding: 1rem;
         border-radius: 10px;
         border-left: 4px solid #4ECDC4;
         margin: 1rem 0;
-        color: white;
+        color: #000033;
     }}
     .info-box h4 {{
-        color: white;
+        color: #000033;
         margin: 0 0 0.5rem 0;
     }}
     .info-box p {{
-        color: #ccc;
+        color: #333;
         margin: 0;
     }}
     .condition-box {{
-        background: #1e1e2e;
+        background: #fff3e0;
         padding: 1rem;
         border-radius: 10px;
         border-left: 4px solid #ffa500;
         margin: 0.5rem 0;
         font-family: monospace;
-        color: #00ff88;
+        color: #000080;
     }}
     .stButton button {{
         border-radius: 10px !important;
@@ -417,12 +417,12 @@ st.markdown(f"""
         border-radius: 10px;
     }}
     div[data-testid="stExpander"] details {{
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
         border-radius: 15px;
         border: none;
     }}
     div[data-testid="stExpander"] summary {{
-        color: white;
+        color: #000033;
         font-weight: bold;
     }}
 </style>
@@ -1774,7 +1774,6 @@ with tabs[4]:
                         config['subject'] = st.text_input("Тема", config.get('subject', 'Уведомление'), key=f"subj_{i}")
                         config['body'] = st.text_area("Сообщение", config.get('body', ''), height=80, key=f"body_{i}")
                         config['sender_email'] = st.text_input("Email отправителя", config.get('sender_email', sender_email), key=f"from_{i}")
-                        # Исправленная строка: позиционные аргументы перед именованными
                         config['sender_password'] = st.text_input("Пароль", config.get('sender_password', sender_password), type="password", key=f"pass_{i}")
                         st.caption("💡 Используйте {{переменная}} для подстановки из контекста")
                     
