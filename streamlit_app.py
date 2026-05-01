@@ -21,7 +21,6 @@ import plotly.graph_objects as go
 from openai import OpenAI
 from pathlib import Path
 import base64
-from streamlit_option_menu import option_menu
 import random
 
 # ============================================================================
@@ -1119,7 +1118,7 @@ class AgentManager:
             role="специалист по автоматизации бизнес-процессов",
             system_prompt="""Ты эксперт по автоматизации. Твоя задача:
 - Предлагать решения для автоматизации
-- Оптимизировать рабочие процессы
+- Оптимизировать рабочие流程
 - Указывать на узкие места
 - Давать пошаговые инструкции""",
             avatar_emoji="⚙️"
@@ -1314,7 +1313,7 @@ with st.sidebar:
             selected_class = " agent-card-selected" if is_selected else ""
             
             st.markdown(f"""
-            <div class="agent-card{selected_class}" onclick="alert('test')">
+            <div class="agent-card{selected_class}">
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                     <span style="font-size: 1.5rem;">{agent['avatar']}</span>
                     <div style="flex: 1;">
@@ -1418,7 +1417,7 @@ with tabs[0]:
         """, unsafe_allow_html=True)
         
         # История диалога
-        for idx, msg in enumerate(st.session_state.agent_messages):
+        for msg in st.session_state.agent_messages:
             if msg['role'] == 'user':
                 st.markdown(f"""
                 <div class="chat-message-user">
@@ -1858,34 +1857,299 @@ with tabs[4]:
                     elif block_type == 'loop':
                         config['items'] = st.text_area("Элементы (JSON массив)", 
                             config.get('items', '[1, 2, 3, 4, 5]'),
+                            height=80, key=f"items_{i}")
+                        config['batch_size'] = st.number_input("Размер пачки", 1, 100, 
+                            int(config.get('batch_size', 10)), key=f"batch_{i}")
+                    
+                    elif block_type in ['http_get', 'http_post']:
+                        config['url'] = st.text_input("URL", config.get('url', ''), key=f"url_{i}")
+                        config['headers'] = st.text_area("Заголовки (JSON)", 
+                            config.get('headers', '{}'), key=f"headers_{i}")
+                        if block_type == 'http_post':
+                            config['body'] = st.text_area("Тело запроса (JSON)", 
+                                config.get('body', '{}'), key=f"body_{i}")
+                    
+                    block['config'] = config
+                
+                if st.button(f"🗑️ Удалить блок {i+1}", key=f"del_{i}"):
+                    st.session_state.workflow.pop(i)
+                    st.rerun()
             
-### 3. Память агента
-Добавляйте факты, которые агент должен запомнить:
-- Ключ: "любимый_язык"
-- Значение: "Python"
+            st.markdown("---")
+            
+            # Сохранение workflow
+            col_save1, col_save2 = st.columns(2)
+            with col_save1:
+                workflow_name = st.text_input("Название workflow для сохранения:", placeholder="Мой первый workflow")
+                if st.button("💾 Сохранить workflow", use_container_width=True):
+                    if workflow_name:
+                        st.session_state.workflows[workflow_name] = st.session_state.workflow
+                        save_workflows_to_file(st.session_state.workflows)
+                        st.success(f"✅ Workflow '{workflow_name}' сохранен!")
+                    else:
+                        st.error("Введите название")
+            
+            with col_save2:
+                if st.button("🗑️ Очистить workflow", use_container_width=True):
+                    st.session_state.workflow = []
+                    st.rerun()
+            
+            st.markdown("---")
+            
+            # Кнопка запуска workflow
+            if st.button("🚀 ЗАПУСТИТЬ WORKFLOW", type="primary", use_container_width=True):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                def update_progress(idx, node):
+                    progress_bar.progress((idx + 1) / len(st.session_state.workflow))
+                    status_text.text(f"🔄 Выполняется: {node.get('name', 'Block')}")
+                
+                executor = WorkflowExecutor(st.session_state.workflow, api_key, agent_manager)
+                result = executor.execute(update_progress)
+                
+                progress_bar.progress(1.0)
+                
+                if result['success']:
+                    st.balloons()
+                    st.success(f"✅ Workflow выполнен успешно за {result['execution_time']:.1f} секунд!")
+                    
+                    st.session_state.analytics['total_executions'] += 1
+                    st.session_state.analytics['successful_executions'] += 1
+                    
+                    with st.expander("📋 Результаты выполнения", expanded=True):
+                        for res in result['results']:
+                            st.markdown(f"**📌 {res['node']}**")
+                            st.json(res['result'])
+                            st.markdown("---")
+                else:
+                    st.session_state.analytics['total_executions'] += 1
+                    st.session_state.analytics['failed_executions'] += 1
+                    st.error(f"❌ Ошибка: {result['error']}")
+        else:
+            st.info("💡 Добавьте блоки из левой колонки для создания workflow")
+    
+    # Загруженные workflows
+    if st.session_state.workflows:
+        st.markdown("---")
+        st.subheader("📚 Сохраненные workflows")
+        for name, workflow in st.session_state.workflows.items():
+            with st.expander(f"📁 {name}"):
+                st.json(workflow)
+                col_load1, col_load2 = st.columns(2)
+                with col_load1:
+                    if st.button(f"📂 Загрузить {name}", key=f"load_{name}"):
+                        st.session_state.workflow = workflow
+                        st.success(f"Workflow '{name}' загружен!")
+                        st.rerun()
+                with col_load2:
+                    if st.button(f"🗑️ Удалить {name}", key=f"delete_workflow_{name}"):
+                        del st.session_state.workflows[name]
+                        save_workflows_to_file(st.session_state.workflows)
+                        st.rerun()
+
+# ============================================================================
+# ВКЛАДКА 6: РУССКИЕ УСЛОВИЯ
+# ============================================================================
+
+with tabs[5]:
+    st.subheader("🔀 Русские условия для workflow")
+    
+    st.markdown("""
+    <div class="info-box-premium">
+        <h4>🎯 Как писать условия на русском?</h4>
+        <p>Просто напишите условие так, как вы бы сказали человеку. ИИ сам преобразует его в исполняемый код!</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 📝 Примеры условий")
+        examples = [
+            "если цена больше 1000 то отправить уведомление",
+            "если статус равно 'успех' иначе отправить ошибку",
+            "если количество меньше 5 то пополнить склад",
+            "если текст содержит 'срочно' то отметить как важное",
+            "если поле пусто то заполнить значением по умолчанию"
+        ]
+        for ex in examples:
+            st.code(f"📌 {ex}")
+        
+        st.markdown("### 💡 Доступные операторы")
+        st.markdown("""
+        | Что написать | Как понять |
+        |--------------|------------|
+        | больше, выше, > | Больше чем |
+        | меньше, ниже, < | Меньше чем |
+        | равно, равняется, = | Равно |
+        | содержит, включает | Содержит подстроку |
+        | пусто, не заполнено | Пустое значение |
+        """)
+    
+    with col2:
+        st.markdown("### 🔧 Проверьте своё условие")
+        test_condition = st.text_area("Напишите условие:", 
+                                       height=150,
+                                       placeholder="например: если температура больше 30 то включить кондиционер")
+        
+        if test_condition:
+            parsed = RussianConditionParser.parse(test_condition)
+            
+            st.markdown("### 📊 Результат анализа:")
+            
+            col_res1, col_res2 = st.columns(2)
+            with col_res1:
+                st.metric("Тип условия", parsed.get('type', 'unknown'))
+            with col_res2:
+                st.metric("Оригинал", parsed.get('original', '')[:50])
+            
+            if parsed.get('code'):
+                st.success(f"💻 Сгенерированный код: `{parsed['code']}`")
+            else:
+                st.warning("⚠️ Не удалось распознать условие. Попробуйте переформулировать.")
+
+# ============================================================================
+# ВКЛАДКА 7: ИНСТРУКЦИЯ
+# ============================================================================
+
+with tabs[6]:
+    st.subheader("📖 Полная инструкция для новичков")
+    
+    st.markdown("""
+    ## 🧠 Что такое ИИ агенты с обучением?
+    
+    **ИИ агенты** - это персонализированные помощники, которые:
+    - Учатся на ваших примерах
+    - Запоминают важную информацию
+    - Адаптируются под ваш стиль
+    - Совершенствуются с каждым диалогом
+    
+    ---
+    
+    ## 📚 Как обучить агента?
+    
+    ### 1. Добавление примеров
+    Перейдите на вкладку **ОБУЧЕНИЕ** и добавьте примеры правильных ответов.
+    
+    ### 2. Массовое обучение
+    Можно добавить сразу много примеров в формате: Вопрос -> Ответ
+    
+    ### 3. Память агента
+    Добавляйте факты, которые агент должен запомнить.
+    
+    ---
+    
+    ## 🤖 Как использовать workflow?
+    
+    ### Создание автоматизации
+    1. Перейдите на вкладку **WORKFLOW**
+    2. Добавляйте блоки из левой колонки
+    3. Настраивайте каждый блок
+    4. Нажмите **ЗАПУСТИТЬ WORKFLOW**
+    
+    ### Типы блоков
+    
+    | Блок | Назначение |
+    |------|------------|
+    | Google Таблицы | Чтение данных из таблиц |
+    | DeepSeek AI | Анализ данных через ИИ |
+    | Условие (русское) | Ветвление логики |
+    | Email | Отправка писем |
+    | Telegram | Уведомления в Telegram |
+    | Цикл | Повторение действий |
+    
+    ---
+    
+    ## 🔀 Русские условия
+    
+    Условия пишутся естественным языком:
+    
+---
+
+## 💾 Сохранение данных
+
+Все данные автоматически сохраняются в файлы:
+- agents.json - все агенты с обучением и памятью
+- workflows.json - сохраненные автоматизации
+- settings.json - настройки приложения
+
+**Агенты не пропадают после перезапуска!**
 
 ---
 
-## 🤖 Как использовать workflow?
+## 🚀 Быстрый старт за 5 минут
 
-### Создание автоматизации
-1. Перейдите на вкладку **"WORKFLOW"**
-2. Добавляйте блоки из левой колонки
-3. Настраивайте каждый блок
-4. Нажмите **"ЗАПУСТИТЬ WORKFLOW"**
-
-### Типы блоков
-| Блок | Назначение |
-|------|------------|
-| 📖 Google Таблицы | Чтение данных из таблиц |
-| 🧠 DeepSeek AI | Анализ данных через ИИ |
-| 🔀 Условие (русское) | Ветвление логики |
-| 📧 Email | Отправка писем |
-| 📱 Telegram | Уведомления в Telegram |
-| 🔄 Цикл | Повторение действий |
+1. **Получите API ключ** на platform.deepseek.com
+2. **Вставьте ключ** в боковую панель
+3. **Создайте агента** - заполните имя, роль и промпт
+4. **Обучите агента** - добавьте 2-3 примера
+5. **Начните диалог** - задайте вопрос и получите ответ
 
 ---
 
-## 🔀 Русские условия
+## ❓ Частые вопросы
 
-Условия пишутся естественным языком:
+**Q: Нужно ли платить за DeepSeek API?**  
+A: Нет, DeepSeek предоставляет бесплатный API.
+
+**Q: Сохранятся ли мои агенты после закрытия?**  
+A: Да! Все данные автоматически сохраняются.
+
+**Q: Можно ли поделиться агентом?**  
+A: Да! Используйте кнопку "Экспорт" в боковой панели.
+
+---
+
+## 🎉 Поздравляю!
+
+Теперь вы готовы создавать своих ИИ агентов и автоматизации!
+
+Начните с создания первого агента в боковой панели.
+""")
+
+# ============================================================================
+# ФУНКЦИЯ СОХРАНЕНИЯ WORKFLOWS
+# ============================================================================
+
+def save_workflows_to_file(workflows_dict, filepath='workflows.json'):
+"""Сохранение workflows в файл"""
+try:
+    with open(filepath, 'w', encoding='utf-8') as f:
+        json.dump(workflows_dict, f, ensure_ascii=False, indent=2)
+    return True
+except Exception as e:
+    print(f"Ошибка сохранения workflows: {e}")
+    return False
+
+# ============================================================================
+# ИНДИКАТОР АВТОСОХРАНЕНИЯ
+# ============================================================================
+
+if st.session_state.get('auto_save_enabled', True):
+st.markdown("""
+<div class="save-indicator-premium">
+    💾 Автосохранение активно
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================================
+# ПОДВАЛ
+# ============================================================================
+
+st.markdown("---")
+st.markdown("""
+<div style="text-align: center; padding: 2rem; color: #888">
+<div style="font-size: 1.2rem; margin-bottom: 0.5rem;">🧠 Workflow Builder PRO v7.0 (Расширенная версия)</div>
+<div style="font-size: 0.8rem;">Обучаемые ИИ агенты | Автосохранение | Премиум дизайн | Русские условия</div>
+<div style="font-size: 0.7rem; margin-top: 0.5rem;">
+    ⭐ Все данные автоматически сохраняются в JSON файлы | После перезапуска всё восстанавливается
+</div>
+<div style="font-size: 0.7rem; margin-top: 0.5rem;">
+    📁 Файлы: agents.json | workflows.json | settings.json
+</div>
+<div style="font-size: 0.7rem; margin-top: 0.5rem; opacity: 0.5;">
+    © 2024 Workflow Builder Pro | Создано для автоматизации
+</div>
+</div>
+""", unsafe_allow_html=True)
