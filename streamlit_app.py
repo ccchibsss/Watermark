@@ -24,426 +24,374 @@ import base64
 import random
 
 # ============================================================================
-# ФУНКЦИИ ДЛЯ ПОЛНОГО СОХРАНЕНИЯ
+# НАСТРОЙКА СТРАНИЦЫ
 # ============================================================================
 
-def save_all_data():
-    """Сохраняет все данные: агентов, workflows, настройки"""
-    try:
-        if 'agent_manager' in st.session_state:
-            agents_dict = {}
-            for aid, agent in st.session_state.agent_manager.agents.items():
-                agents_dict[aid] = agent.to_dict()
-            with open('agents.json', 'w', encoding='utf-8') as f:
-                json.dump(agents_dict, f, ensure_ascii=False, indent=2)
-        
-        if 'workflows' in st.session_state:
-            with open('workflows.json', 'w', encoding='utf-8') as f:
-                json.dump(st.session_state.workflows, f, ensure_ascii=False, indent=2)
-        
-        settings = {
-            'last_agent_id': st.session_state.get('current_agent_id'),
-            'last_workflow': st.session_state.get('current_workflow_name'),
-            'version': '7.0-extended',
-            'last_saved': datetime.now().isoformat(),
-            'total_agents': len(st.session_state.get('agent_manager', {}).agents) if 'agent_manager' in st.session_state else 0
-        }
-        with open('settings.json', 'w', encoding='utf-8') as f:
-            json.dump(settings, f, ensure_ascii=False, indent=2)
-        
-        return True
-    except Exception as e:
-        print(f"Ошибка сохранения: {e}")
-        return False
-
-def load_all_data():
-    """Загружает все данные при старте"""
-    try:
-        agents_dict = {}
-        if os.path.exists('agents.json'):
-            with open('agents.json', 'r', encoding='utf-8') as f:
-                agents_dict = json.load(f)
-        
-        workflows_dict = {}
-        if os.path.exists('workflows.json'):
-            with open('workflows.json', 'r', encoding='utf-8') as f:
-                workflows_dict = json.load(f)
-        
-        last_agent_id = None
-        last_workflow = None
-        if os.path.exists('settings.json'):
-            with open('settings.json', 'r', encoding='utf-8') as f:
-                settings = json.load(f)
-                last_agent_id = settings.get('last_agent_id')
-                last_workflow = settings.get('last_workflow')
-        
-        return agents_dict, workflows_dict, last_agent_id, last_workflow
-    except Exception as e:
-        print(f"Ошибка загрузки: {e}")
-        return {}, {}, None, None
-
-def auto_save_callback():
-    """Автоматическое сохранение при любых изменениях"""
-    if 'agent_manager' in st.session_state:
-        st.session_state.agent_manager.save_agents()
-    if 'workflows' in st.session_state:
-        try:
-            with open('workflows.json', 'w', encoding='utf-8') as f:
-                json.dump(st.session_state.workflows, f, ensure_ascii=False, indent=2)
-        except:
-            pass
-
-def with_autosave(func):
-    """Декоратор для автоматического сохранения после функции"""
-    def wrapper(*args, **kwargs):
-        result = func(*args, **kwargs)
-        auto_save_callback()
-        return result
-    return wrapper
+st.set_page_config(
+    page_title="Workflow Builder Pro - Обучаемые ИИ Агенты v7.0",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # ============================================================================
 # ПРЕМИУМ СТИЛИ
 # ============================================================================
 
-def apply_premium_styles():
-    """Применяет премиум стили для всего приложения"""
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
     
-    st.markdown("""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        
-        * {
-            font-family: 'Inter', sans-serif;
-        }
-        
-        .stApp {
-            background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 50%, #24243e 100%);
-            color: #ffffff;
-        }
-        
-        .main-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-            background-size: 200% 200%;
-            animation: gradientShift 5s ease infinite;
-            padding: 2.5rem;
-            border-radius: 30px;
-            text-align: center;
-            margin-bottom: 2rem;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
-            border: 1px solid rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-        }
-        
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-        
-        .main-header h1 {
-            font-size: 3rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #fff, #ffd89b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin: 0;
-        }
-        
-        .main-header p {
-            font-size: 1.1rem;
-            color: rgba(255,255,255,0.95);
-            margin-top: 0.5rem;
-        }
-        
-        .agent-card {
-            background: linear-gradient(135deg, rgba(26,26,46,0.95), rgba(22,30,62,0.95));
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 1.2rem;
-            margin: 0.8rem 0;
-            border: 1px solid rgba(78,205,196,0.3);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .agent-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(78,205,196,0.2), transparent);
-            transition: left 0.5s;
-        }
-        
-        .agent-card:hover::before {
-            left: 100%;
-        }
-        
-        .agent-card:hover {
-            transform: translateX(8px) scale(1.02);
-            border-color: #4ECDC4;
-            box-shadow: 0 10px 30px rgba(78,205,196,0.2);
-        }
-        
-        .agent-card-selected {
-            border-left-color: #00ff88;
-            background: linear-gradient(135deg, rgba(10,46,31,0.95), rgba(10,26,16,0.95));
-        }
-        
-        .chat-message-user {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 20px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-            max-width: 80%;
-            margin-left: auto;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            animation: slideInRight 0.3s ease;
-        }
-        
-        .chat-message-agent {
-            background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(22,30,62,0.9));
-            border-radius: 20px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-            max-width: 80%;
-            border-left: 4px solid #4ECDC4;
-            animation: slideInLeft 0.3s ease;
-        }
-        
-        @keyframes slideInRight {
-            from { opacity: 0; transform: translateX(50px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        
-        @keyframes slideInLeft {
-            from { opacity: 0; transform: translateX(-50px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        
-        .stat-card-glass {
-            background: rgba(255,255,255,0.08);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 1.5rem;
-            text-align: center;
-            border: 1px solid rgba(255,255,255,0.1);
-            transition: all 0.3s ease;
-        }
-        
-        .stat-card-glass:hover {
-            transform: translateY(-5px);
-            background: rgba(255,255,255,0.12);
-            border-color: #4ECDC4;
-        }
-        
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #fff, #4ECDC4);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        .workflow-node {
-            background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(22,30,62,0.9));
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 1rem;
-            margin: 0.8rem 0;
-            border-left: 4px solid #4ECDC4;
-            transition: all 0.3s ease;
-        }
-        
-        .workflow-node:hover {
-            transform: translateX(5px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        
-        .workflow-node-success {
-            border-left-color: #00ff88;
-            background: linear-gradient(135deg, rgba(10,46,31,0.9), rgba(10,26,16,0.9));
-        }
-        
-        .workflow-node-error {
-            border-left-color: #ff4444;
-            background: linear-gradient(135deg, rgba(62,26,26,0.9), rgba(42,15,15,0.9));
-        }
-        
-        .training-card-premium {
-            background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(22,30,62,0.9));
-            border-radius: 15px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-            border-left: 4px solid #FFD700;
-            transition: all 0.3s ease;
-        }
-        
-        .training-card-premium:hover {
-            transform: translateX(5px);
-            box-shadow: 0 5px 20px rgba(255,215,0,0.2);
-        }
-        
-        .memory-box {
-            background: rgba(30,30,46,0.9);
-            backdrop-filter: blur(10px);
-            padding: 1rem;
-            border-radius: 15px;
-            border-left: 4px solid #ffa500;
-            margin: 0.5rem 0;
-            transition: all 0.3s ease;
-        }
-        
-        .memory-box:hover {
-            transform: translateX(5px);
-        }
-        
-        .info-box-premium {
-            background: rgba(30,30,46,0.9);
-            backdrop-filter: blur(10px);
-            padding: 1rem;
-            border-radius: 15px;
-            border-left: 4px solid #4ECDC4;
-            margin: 1rem 0;
-        }
-        
-        .condition-box {
-            background: rgba(30,30,46,0.9);
-            backdrop-filter: blur(10px);
-            padding: 1rem;
-            border-radius: 15px;
-            border-left: 4px solid #ffa500;
-            margin: 0.5rem 0;
-            font-family: monospace;
-        }
-        
-        .stButton > button {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            padding: 0.6rem 1.2rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .stButton > button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102,126,234,0.3);
-        }
-        
-        .stTextInput > div > div > input, .stTextArea > div > div > textarea {
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
-            color: white;
-            padding: 0.75rem;
-        }
-        
-        .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
-            border-color: #4ECDC4;
-            box-shadow: 0 0 0 2px rgba(78,205,196,0.2);
-        }
-        
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 0.5rem;
-            background: rgba(255,255,255,0.05);
-            border-radius: 15px;
-            padding: 0.5rem;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            border-radius: 10px;
-            padding: 0.5rem 1rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .stTabs [aria-selected="true"] {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-        }
-        
-        .stProgress > div > div {
-            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
-            background-size: 200% 100%;
-            animation: gradientProgress 2s ease infinite;
-        }
-        
-        @keyframes gradientProgress {
-            0% { background-position: 0% 50%; }
-            100% { background-position: 200% 50%; }
-        }
-        
-        ::-webkit-scrollbar {
-            width: 10px;
-            height: 10px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: rgba(255,255,255,0.05);
-            border-radius: 10px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 10px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(135deg, #764ba2, #f093fb);
-        }
-        
-        .badge-premium {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin: 0.25rem;
-        }
-        
-        .save-indicator-premium {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: linear-gradient(135deg, #00ff88, #00bfff);
-            color: #000;
-            padding: 8px 16px;
-            border-radius: 25px;
-            font-size: 12px;
-            font-weight: bold;
-            z-index: 999;
-            animation: pulse 2s infinite;
-            box-shadow: 0 4px 15px rgba(0,255,136,0.3);
-        }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.9; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        
-        h1, h2, h3, h4, h5, h6 {
-            font-weight: 700;
-            background: linear-gradient(135deg, #fff, #4ECDC4);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        
-        hr {
-            border: none;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #4ECDC4, transparent);
-            margin: 2rem 0;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    .stApp {
+        background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 50%, #24243e 100%);
+        color: #ffffff;
+    }
+    
+    .main-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        background-size: 200% 200%;
+        animation: gradientShift 5s ease infinite;
+        padding: 2rem;
+        border-radius: 20px;
+        text-align: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    .main-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #fff, #ffd89b);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0;
+    }
+    
+    .main-header p {
+        font-size: 1rem;
+        color: rgba(255,255,255,0.95);
+        margin-top: 0.5rem;
+    }
+    
+    .agent-card {
+        background: linear-gradient(135deg, rgba(26,26,46,0.95), rgba(22,30,62,0.95));
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border: 1px solid rgba(78,205,196,0.3);
+        transition: all 0.3s ease;
+    }
+    
+    .agent-card:hover {
+        transform: translateX(5px);
+        border-color: #4ECDC4;
+        box-shadow: 0 5px 15px rgba(78,205,196,0.2);
+    }
+    
+    .agent-card-selected {
+        border-left: 4px solid #00ff88;
+        background: linear-gradient(135deg, rgba(10,46,31,0.95), rgba(10,26,16,0.95));
+    }
+    
+    .chat-message-user {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-radius: 20px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        max-width: 80%;
+        margin-left: auto;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        animation: slideInRight 0.3s ease;
+    }
+    
+    .chat-message-agent {
+        background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(22,30,62,0.9));
+        border-radius: 20px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        max-width: 80%;
+        border-left: 4px solid #4ECDC4;
+        animation: slideInLeft 0.3s ease;
+    }
+    
+    @keyframes slideInRight {
+        from { opacity: 0; transform: translateX(50px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    
+    @keyframes slideInLeft {
+        from { opacity: 0; transform: translateX(-50px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    
+    .stat-card-glass {
+        background: rgba(255,255,255,0.08);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 1rem;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .stat-card-glass:hover {
+        transform: translateY(-5px);
+        background: rgba(255,255,255,0.12);
+        border-color: #4ECDC4;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #fff, #4ECDC4);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    .workflow-node {
+        background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(22,30,62,0.9));
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-left: 4px solid #4ECDC4;
+        transition: all 0.3s ease;
+    }
+    
+    .workflow-node:hover {
+        transform: translateX(5px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    
+    .workflow-node-success {
+        border-left-color: #00ff88;
+        background: linear-gradient(135deg, rgba(10,46,31,0.9), rgba(10,26,16,0.9));
+    }
+    
+    .workflow-node-error {
+        border-left-color: #ff4444;
+        background: linear-gradient(135deg, rgba(62,26,26,0.9), rgba(42,15,15,0.9));
+    }
+    
+    .training-card-premium {
+        background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(22,30,62,0.9));
+        border-radius: 10px;
+        padding: 0.8rem;
+        margin: 0.5rem 0;
+        border-left: 4px solid #FFD700;
+        transition: all 0.3s ease;
+    }
+    
+    .training-card-premium:hover {
+        transform: translateX(5px);
+    }
+    
+    .memory-box {
+        background: rgba(30,30,46,0.9);
+        backdrop-filter: blur(10px);
+        padding: 0.8rem;
+        border-radius: 10px;
+        border-left: 4px solid #ffa500;
+        margin: 0.5rem 0;
+    }
+    
+    .info-box-premium {
+        background: rgba(30,30,46,0.9);
+        backdrop-filter: blur(10px);
+        padding: 1rem;
+        border-radius: 10px;
+        border-left: 4px solid #4ECDC4;
+        margin: 1rem 0;
+    }
+    
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102,126,234,0.3);
+    }
+    
+    .stTextInput > div > div > input, .stTextArea > div > div > textarea {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        color: white;
+        padding: 0.5rem;
+    }
+    
+    .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
+        border-color: #4ECDC4;
+        box-shadow: 0 0 0 2px rgba(78,205,196,0.2);
+    }
+    
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0.5rem;
+        background: rgba(255,255,255,0.05);
+        border-radius: 15px;
+        padding: 0.5rem;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 0.5rem 1rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+    }
+    
+    .stProgress > div > div {
+        background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+        background-size: 200% 100%;
+        animation: gradientProgress 2s ease infinite;
+    }
+    
+    @keyframes gradientProgress {
+        0% { background-position: 0% 50%; }
+        100% { background-position: 200% 50%; }
+    }
+    
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.05);
+        border-radius: 10px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-radius: 10px;
+    }
+    
+    .badge-premium {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        margin: 0.2rem;
+    }
+    
+    .save-indicator-premium {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #00ff88, #00bfff);
+        color: #000;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: bold;
+        z-index: 999;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.9; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        font-weight: 700;
+        background: linear-gradient(135deg, #fff, #4ECDC4);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    
+    hr {
+        border: none;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #4ECDC4, transparent);
+        margin: 1.5rem 0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Заголовок
+st.markdown("""
+<div class="main-header">
+    <h1>🧠 WORKFLOW BUILDER PRO v7.0</h1>
+    <p>Обучаемые ИИ агенты | Сохранение контекста | Персональные помощники | Русские условия</p>
+    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 0.5rem;">
+        <span class="badge-premium">✨ ИИ Агенты</span>
+        <span class="badge-premium">💾 Автосохранение</span>
+        <span class="badge-premium">🎨 Премиум дизайн</span>
+        <span class="badge-premium">🚀 Высокая производительность</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ============================================================================
+# ФУНКЦИИ ДЛЯ СОХРАНЕНИЯ
+# ============================================================================
+
+def save_agents_to_file(agents_dict, filepath='agents.json'):
+    """Сохранение агентов в файл"""
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(agents_dict, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Ошибка сохранения: {e}")
+        return False
+
+def load_agents_from_file(filepath='agents.json'):
+    """Загрузка агентов из файла"""
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_workflows_to_file(workflows_dict, filepath='workflows.json'):
+    """Сохранение workflows в файл"""
+    try:
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(workflows_dict, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Ошибка сохранения workflows: {e}")
+        return False
+
+def load_workflows_from_file(filepath='workflows.json'):
+    """Загрузка workflows из файла"""
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
 
 # ============================================================================
 # КЛАСС ДЛЯ ПРЕОБРАЗОВАНИЯ РУССКИХ УСЛОВИЙ
@@ -456,17 +404,6 @@ class RussianConditionParser:
     def parse(condition_text: str) -> Dict:
         """Преобразует русское условие в структуру"""
         condition_text = condition_text.lower().strip()
-        
-        patterns = {
-            'больше': r'(.+?)\s+(больше|выше|>)\s+(.+)',
-            'меньше': r'(.+?)\s+(меньше|ниже|<)\s+(.+)',
-            'равно': r'(.+?)\s+(равно|равняется|==|=)\s+(.+)',
-            'содержит': r'(.+?)\s+(содержит|включает|имеет)\s+(.+)',
-            'начинается': r'(.+?)\s+(начинается с|начинается)\s+(.+)',
-            'заканчивается': r'(.+?)\s+(заканчивается на|заканчивается)\s+(.+)',
-            'пусто': r'(.+?)\s+(пусто|не заполнено|отсутствует)',
-            'между': r'(.+?)\s+(между|от)\s+(.+?)\s+(до|и)\s+(.+)',
-        }
         
         result = {
             'original': condition_text,
@@ -482,7 +419,7 @@ class RussianConditionParser:
                 condition_part = match.group(1)
                 result['type'] = 'if_then'
                 result['condition'] = condition_part
-                result['code'] = f"if {RussianConditionParser._to_code(condition_part)}:"
+                result['code'] = f"if {condition_part}:"
         
         elif 'иначе' in condition_text:
             parts = condition_text.split('иначе')
@@ -490,55 +427,9 @@ class RussianConditionParser:
                 result['type'] = 'if_else'
                 result['true_branch'] = parts[0].replace('если', '').strip()
                 result['false_branch'] = parts[1].strip()
-                result['code'] = f"if {RussianConditionParser._to_code(result['true_branch'])}:\n    # действие\nelse:\n    # другое действие"
+                result['code'] = f"if {result['true_branch']}:\n    # действие\nelse:\n    # другое действие"
         
-        else:
-            for pattern_type, pattern in patterns.items():
-                match = re.search(pattern, condition_text)
-                if match:
-                    result['type'] = pattern_type
-                    result['matches'] = match.groups()
-                    result['code'] = RussianConditionParser._generate_code(pattern_type, match.groups())
-                    break
-        
-        result['examples'] = RussianConditionParser._get_examples()
         return result
-    
-    @staticmethod
-    def _to_code(condition: str) -> str:
-        """Преобразует часть условия в Python код"""
-        replacements = {
-            'больше': '>', 'выше': '>', 'меньше': '<', 'ниже': '<',
-            'равно': '==', 'равняется': '==', 'содержит': 'in',
-            'начинается с': '.startswith', 'заканчивается на': '.endswith'
-        }
-        for rus, eng in replacements.items():
-            if rus in condition:
-                condition = condition.replace(rus, eng)
-        condition = re.sub(r'\{\{([^}]+)\}\}', r'data.get("\1", None)', condition)
-        return condition
-    
-    @staticmethod
-    def _generate_code(pattern_type: str, groups: tuple) -> str:
-        """Генерирует Python код из распознанного шаблона"""
-        codes = {
-            'больше': f"if {groups[0].strip()} > {groups[2].strip()}:",
-            'меньше': f"if {groups[0].strip()} < {groups[2].strip()}:",
-            'равно': f"if {groups[0].strip()} == {groups[2].strip()}:",
-            'содержит': f"if {groups[2].strip()} in {groups[0].strip()}:",
-            'пусто': f"if not {groups[0].strip()}:"
-        }
-        return codes.get(pattern_type, f"if {pattern_type}: # {groups}")
-    
-    @staticmethod
-    def _get_examples() -> List[str]:
-        return [
-            "если цена больше 1000 то отправить уведомление",
-            "если статус равно 'успех' иначе отправить ошибку",
-            "если количество меньше 5 то пополнить склад",
-            "если текст содержит 'срочно' то отметить как важное",
-            "если поле пусто то заполнить значением по умолчанию"
-        ]
     
     @staticmethod
     def evaluate(condition_text: str, context: Dict) -> bool:
@@ -579,7 +470,7 @@ class RussianConditionParser:
                     return value in context_value
             
             return True
-        except Exception as e:
+        except Exception:
             return False
 
 # ============================================================================
@@ -661,11 +552,6 @@ class AIAgent:
         }
         self.conversation_history.append(conversation)
         self.stats['total_conversations'] += 1
-        
-        if feedback == 'positive':
-            self.stats['success_rate'] = (self.stats['success_rate'] * (self.stats['total_conversations'] - 1) + 100) / self.stats['total_conversations']
-        elif feedback == 'negative':
-            self.stats['success_rate'] = (self.stats['success_rate'] * (self.stats['total_conversations'] - 1) + 0) / self.stats['total_conversations']
     
     def get_context_summary(self) -> str:
         """Возвращает краткую сводку контекста агента"""
@@ -698,19 +584,16 @@ class AIAgent:
         try:
             client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
             
-            # Находим похожие примеры
             similar_examples = []
             if use_training:
                 similar_examples = self.find_similar_examples(user_input)
             
-            # Собираем контекст из памяти
             memory_context = ""
             if self.memory:
                 memory_context = "\n\nЗНАНИЯ АГЕНТА (из памяти):\n"
                 for mem in self.memory[-5:]:
                     memory_context += f"- {mem['key']}: {mem['value']}\n"
             
-            # Собираем примеры обучения
             training_context = ""
             if similar_examples:
                 training_context = "\n\nПРИМЕРЫ ОБУЧЕНИЯ:\n"
@@ -783,65 +666,6 @@ class AIAgent:
             'last_trained': None
         })
         return agent
-
-# ============================================================================
-# КЛАСС ДЛЯ ГЕНЕРАЦИИ WORKFLOW ЧЕРЕЗ ИИ
-# ============================================================================
-
-class AIWorkflowGenerator:
-    """Генерирует workflow из текстового описания на русском"""
-    
-    @staticmethod
-    def generate(description: str, api_key: str) -> List[Dict]:
-        """Генерирует workflow из описания"""
-        if not api_key:
-            return []
-        
-        try:
-            client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
-            
-            prompt = f"""
-Ты эксперт по созданию workflow автоматизации. На основе описания пользователя создай JSON workflow.
-
-Описание пользователя: "{description}"
-
-Правила:
-1. Workflow - это массив блоков (nodes)
-2. Каждый блок имеет: name (название), type (тип), config (настройки)
-3. Доступные типы блоков:
-   - google_sheets_read: чтение из Google таблиц (config: sheet_url)
-   - deepseek: AI анализ (config: system_prompt, user_prompt)
-   - http_get: GET запрос к API (config: url)
-   - http_post: POST запрос (config: url, body)
-   - condition: условие (config: condition на русском)
-   - loop: цикл (config: items)
-   - email: отправка email (config: to, subject, body)
-   - telegram: отправка в Telegram (config: chat_id, message)
-
-4. Условия пиши на РУССКОМ языке, используя природные фразы
-
-Верни ТОЛЬКО JSON массив блоков, без пояснений.
-"""
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": "Ты генератор workflow автоматизации. Возвращай только JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3
-            )
-            
-            content = response.choices[0].message.content
-            json_match = re.search(r'\[[\s\S]*\]', content)
-            if json_match:
-                workflow = json.loads(json_match.group())
-                return workflow
-            else:
-                return []
-                
-        except Exception as e:
-            st.error(f"Ошибка генерации: {str(e)}")
-            return []
 
 # ============================================================================
 # КЛАСС ДЛЯ ВЫПОЛНЕНИЯ WORKFLOW
@@ -976,14 +800,11 @@ class WorkflowExecutor:
     
     def _execute_condition(self, config: Dict) -> Dict:
         condition_text = config.get('condition', '')
-        parsed = RussianConditionParser.parse(condition_text)
         result = RussianConditionParser.evaluate(condition_text, self.context)
         
         return {
             'condition': condition_text,
-            'result': result,
-            'parsed': parsed,
-            'code': parsed.get('code')
+            'result': result
         }
     
     def _execute_loop(self, config: Dict) -> Dict:
@@ -1086,16 +907,19 @@ class AgentManager:
     
     def load_agents(self):
         """Загружает агентов из хранилища"""
-        if 'agents' not in st.session_state:
-            default_agents = self._create_default_agents()
-            st.session_state.agents = {agent.id: agent.to_dict() for agent in default_agents}
-            st.session_state.current_agent_id = default_agents[0].id if default_agents else None
+        agents_data = load_agents_from_file()
         
-        for agent_id, agent_dict in st.session_state.agents.items():
-            if agent_id not in self.agents:
+        if not agents_data:
+            default_agents = self._create_default_agents()
+            for agent in default_agents:
+                self.agents[agent.id] = agent
+            self.save_agents()
+        else:
+            for agent_id, agent_dict in agents_data.items():
                 self.agents[agent_id] = AIAgent.from_dict(agent_dict)
         
-        self.current_agent_id = st.session_state.get('current_agent_id')
+        if self.agents and not self.current_agent_id:
+            self.current_agent_id = list(self.agents.keys())[0]
     
     def _create_default_agents(self) -> List[AIAgent]:
         """Создаёт агентов по умолчанию"""
@@ -1118,7 +942,7 @@ class AgentManager:
             role="специалист по автоматизации бизнес-процессов",
             system_prompt="""Ты эксперт по автоматизации. Твоя задача:
 - Предлагать решения для автоматизации
-- Оптимизировать рабочие流程
+- Оптимизировать рабочие процессы
 - Указывать на узкие места
 - Давать пошаговые инструкции""",
             avatar_emoji="⚙️"
@@ -1140,10 +964,9 @@ class AgentManager:
         return agents
     
     def save_agents(self):
-        """Сохраняет агентов в сессию и файл"""
-        st.session_state.agents = {agent_id: agent.to_dict() for agent_id, agent in self.agents.items()}
-        st.session_state.current_agent_id = self.current_agent_id
-        save_all_data()
+        """Сохраняет агентов в файл"""
+        agents_dict = {agent_id: agent.to_dict() for agent_id, agent in self.agents.items()}
+        save_agents_to_file(agents_dict)
     
     def add_agent(self, name: str, role: str, system_prompt: str, avatar_emoji: str = "🧠") -> AIAgent:
         """Добавляет нового агента"""
@@ -1170,7 +993,6 @@ class AgentManager:
         """Устанавливает текущего агента"""
         if agent_id in self.agents:
             self.current_agent_id = agent_id
-            st.session_state.current_agent_id = agent_id
             self.save_agents()
     
     def export_agent(self, agent_id: str) -> str:
@@ -1207,34 +1029,6 @@ class AgentManager:
         ]
 
 # ============================================================================
-# НАСТРОЙКА СТРАНИЦЫ
-# ============================================================================
-
-st.set_page_config(
-    page_title="Workflow Builder Pro - Обучаемые ИИ Агенты v7.0",
-    page_icon="🧠",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Применяем премиум стили
-apply_premium_styles()
-
-# Заголовок
-st.markdown("""
-<div class="main-header">
-    <h1>🧠 WORKFLOW BUILDER PRO v7.0</h1>
-    <p>Обучаемые ИИ агенты | Сохранение контекста | Персональные помощники | Русские условия</p>
-    <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
-        <span class="badge-premium">✨ ИИ Агенты</span>
-        <span class="badge-premium">💾 Автосохранение</span>
-        <span class="badge-premium">🎨 Премиум дизайн</span>
-        <span class="badge-premium">🚀 Высокая производительность</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-# ============================================================================
 # ИНИЦИАЛИЗАЦИЯ СЕССИИ
 # ============================================================================
 
@@ -1244,10 +1038,8 @@ if 'workflow' not in st.session_state:
     st.session_state.workflow = []
 if 'agent_messages' not in st.session_state:
     st.session_state.agent_messages = []
-if 'history' not in st.session_state:
-    st.session_state.history = []
 if 'workflows' not in st.session_state:
-    st.session_state.workflows = {}
+    st.session_state.workflows = load_workflows_from_file()
 if 'analytics' not in st.session_state:
     st.session_state.analytics = {
         'total_executions': 0,
@@ -1283,10 +1075,11 @@ with st.sidebar:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("💾 Сохранить всё", use_container_width=True):
-            if agent_manager.save_agents():
-                st.success("✅ Все данные сохранены!")
-                time.sleep(1)
-                st.rerun()
+            agent_manager.save_agents()
+            save_workflows_to_file(st.session_state.workflows)
+            st.success("✅ Все данные сохранены!")
+            time.sleep(1)
+            st.rerun()
     
     with col2:
         if st.button("🔄 Перезагрузить", use_container_width=True):
@@ -1394,13 +1187,21 @@ with st.sidebar:
 # ОСНОВНЫЕ ВКЛАДКИ
 # ============================================================================
 
-tabs = st.tabs(["💬 ДИАЛОГ С АГЕНТОМ", "📚 ОБУЧЕНИЕ", "🧠 ПАМЯТЬ", "📊 АНАЛИТИКА", "🤖 WORKFLOW", "🔀 РУССКИЕ УСЛОВИЯ", "📖 ИНСТРУКЦИЯ"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "💬 ДИАЛОГ С АГЕНТОМ",
+    "📚 ОБУЧЕНИЕ",
+    "🧠 ПАМЯТЬ",
+    "📊 АНАЛИТИКА",
+    "🤖 WORKFLOW",
+    "🔀 РУССКИЕ УСЛОВИЯ",
+    "📖 ИНСТРУКЦИЯ"
+])
 
 # ============================================================================
 # ВКЛАДКА 1: ДИАЛОГ С АГЕНТОМ
 # ============================================================================
 
-with tabs[0]:
+with tab1:
     current_agent = agent_manager.get_current_agent()
     
     if not current_agent:
@@ -1436,7 +1237,8 @@ with tabs[0]:
         # Ввод сообщения
         col1, col2 = st.columns([4, 1])
         with col1:
-            user_input = st.text_area("✏️ Ваше сообщение:", height=80, key="agent_input", label_visibility="collapsed", placeholder="Напишите сообщение...")
+            user_input = st.text_area("✏️ Ваше сообщение:", height=80, key="agent_input", 
+                                      label_visibility="collapsed", placeholder="Напишите сообщение...")
         with col2:
             use_training = st.checkbox("Использовать обучение", value=True)
         
@@ -1469,7 +1271,7 @@ with tabs[0]:
 # ВКЛАДКА 2: ОБУЧЕНИЕ
 # ============================================================================
 
-with tabs[1]:
+with tab2:
     current_agent = agent_manager.get_current_agent()
     
     if not current_agent:
@@ -1531,39 +1333,12 @@ with tabs[1]:
                     st.rerun()
         else:
             st.info("Пока нет примеров обучения. Добавьте первый пример выше!")
-        
-        st.markdown("---")
-        with st.expander("📚 МАССОВОЕ ОБУЧЕНИЕ (из текста)"):
-            bulk_text = st.text_area(
-                "Вставьте текст с примерами (каждый пример с новой строки, формат: Вопрос -> Ответ)",
-                height=150,
-                placeholder="Как анализировать данные? -> Для анализа данных нужно...\nЧто такое автоматизация? -> Автоматизация это..."
-            )
-            
-            if st.button("🚀 Обучить на всех примерах"):
-                lines = bulk_text.strip().split('\n')
-                added = 0
-                for line in lines:
-                    if '->' in line:
-                        parts = line.split('->', 1)
-                        question = parts[0].strip()
-                        answer = parts[1].strip()
-                        if question and answer:
-                            current_agent.add_training_example(question, answer)
-                            added += 1
-                
-                if added > 0:
-                    agent_manager.save_agents()
-                    st.success(f"✅ Добавлено {added} примеров обучения!")
-                    st.rerun()
-                else:
-                    st.warning("Не найдено примеров в формате Вопрос -> Ответ")
 
 # ============================================================================
 # ВКЛАДКА 3: ПАМЯТЬ
 # ============================================================================
 
-with tabs[2]:
+with tab3:
     current_agent = agent_manager.get_current_agent()
     
     if not current_agent:
@@ -1582,8 +1357,7 @@ with tabs[2]:
         st.markdown("""
         <div class="info-box-premium">
             <h4>💾 Что такое память агента?</h4>
-            <p>Агент запоминает важные факты о вас, ваших предпочтениях и контексте. 
-            Эти знания сохраняются между диалогами!</p>
+            <p>Агент запоминает важные факты о вас, ваших предпочтениях и контексте.</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -1636,7 +1410,7 @@ with tabs[2]:
 # ВКЛАДКА 4: АНАЛИТИКА
 # ============================================================================
 
-with tabs[3]:
+with tab4:
     current_agent = agent_manager.get_current_agent()
     
     if not current_agent:
@@ -1685,25 +1459,12 @@ with tabs[3]:
         
         st.markdown("---")
         
-        if current_agent.training_examples:
-            st.subheader("📈 Прогресс обучения")
-            df_data = []
-            for i, ex in enumerate(current_agent.training_examples):
-                df_data.append({'Дата': ex['timestamp'][:10], 'Пример': i+1})
-            if df_data:
-                df = pd.DataFrame(df_data)
-                fig = px.line(df, x='Дата', y='Пример', title="Накопление примеров обучения")
-                fig.update_traces(line_color='#4ECDC4', line_width=3)
-                st.plotly_chart(fig, use_container_width=True)
-        
         st.subheader("💬 Последние диалоги")
         if current_agent.conversation_history:
             for conv in current_agent.conversation_history[-5:]:
                 with st.expander(f"Диалог от {conv['timestamp'][:19]}"):
                     st.markdown(f"**👤 Пользователь:** {conv['user'][:200]}...")
                     st.markdown(f"**🤖 Агент:** {conv['agent'][:200]}...")
-                    if conv.get('feedback'):
-                        st.markdown(f"**📝 Оценка:** {conv['feedback']}")
         else:
             st.info("Пока нет диалогов")
     
@@ -1727,7 +1488,7 @@ with tabs[3]:
 # ВКЛАДКА 5: WORKFLOW
 # ============================================================================
 
-with tabs[4]:
+with tab5:
     st.subheader("🤖 Интеграция ИИ агентов в workflow")
     
     st.markdown("""
@@ -1811,7 +1572,6 @@ with tabs[4]:
                     
                     if block_type == 'google_sheets_read':
                         config['sheet_url'] = st.text_input("URL Google Таблицы", config.get('sheet_url', ''), key=f"url_{i}")
-                        st.caption("💡 Пример: https://docs.google.com/spreadsheets/d/ВАШ_ID_ТАБЛИЦЫ/edit")
                     
                     elif block_type == 'deepseek':
                         config['system_prompt'] = st.text_area("Инструкция для ИИ", 
@@ -1824,21 +1584,14 @@ with tabs[4]:
                             float(config.get('temperature', 0.3)), key=f"temp_{i}")
                     
                     elif block_type == 'condition':
-                        st.markdown("**Напишите условие на русском языке:**")
-                        st.caption("Примеры: 'если цена больше 1000', 'если статус равно успех', 'если текст содержит срочно'")
                         config['condition'] = st.text_area("Условие", 
                             config.get('condition', 'если цена больше 1000'), 
                             height=80, key=f"cond_{i}")
-                        
-                        if config.get('condition'):
-                            parsed = RussianConditionParser.parse(config['condition'])
-                            if parsed.get('code'):
-                                st.info(f"🔍 Преобразовано в: `{parsed['code']}`")
                     
                     elif block_type == 'ai_agent':
                         agent = agent_manager.agents.get(block.get('agent_id'))
                         if agent:
-                            st.info(f"{agent.avatar_emoji} Агент: {agent.name} | Роль: {agent.role}")
+                            st.info(f"{agent.avatar_emoji} Агент: {agent.name}")
                             config['question'] = st.text_area("Вопрос к агенту:", 
                                 config.get('question', 'Проанализируй данные'), 
                                 height=80, key=f"q_{i}")
@@ -1952,13 +1705,13 @@ with tabs[4]:
 # ВКЛАДКА 6: РУССКИЕ УСЛОВИЯ
 # ============================================================================
 
-with tabs[5]:
+with tab6:
     st.subheader("🔀 Русские условия для workflow")
     
     st.markdown("""
     <div class="info-box-premium">
         <h4>🎯 Как писать условия на русском?</h4>
-        <p>Просто напишите условие так, как вы бы сказали человеку. ИИ сам преобразует его в исполняемый код!</p>
+        <p>Просто напишите условие так, как вы бы сказали человеку.</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -1968,10 +1721,9 @@ with tabs[5]:
         st.markdown("### 📝 Примеры условий")
         examples = [
             "если цена больше 1000 то отправить уведомление",
-            "если статус равно 'успех' иначе отправить ошибку",
+            "если статус равно успех иначе отправить ошибку",
             "если количество меньше 5 то пополнить склад",
-            "если текст содержит 'срочно' то отметить как важное",
-            "если поле пусто то заполнить значением по умолчанию"
+            "если текст содержит срочно то отметить как важное"
         ]
         for ex in examples:
             st.code(f"📌 {ex}")
@@ -1980,11 +1732,10 @@ with tabs[5]:
         st.markdown("""
         | Что написать | Как понять |
         |--------------|------------|
-        | больше, выше, > | Больше чем |
-        | меньше, ниже, < | Меньше чем |
-        | равно, равняется, = | Равно |
+        | больше, выше | Больше чем |
+        | меньше, ниже | Меньше чем |
+        | равно, равняется | Равно |
         | содержит, включает | Содержит подстроку |
-        | пусто, не заполнено | Пустое значение |
         """)
     
     with col2:
@@ -2003,17 +1754,12 @@ with tabs[5]:
                 st.metric("Тип условия", parsed.get('type', 'unknown'))
             with col_res2:
                 st.metric("Оригинал", parsed.get('original', '')[:50])
-            
-            if parsed.get('code'):
-                st.success(f"💻 Сгенерированный код: `{parsed['code']}`")
-            else:
-                st.warning("⚠️ Не удалось распознать условие. Попробуйте переформулировать.")
 
 # ============================================================================
 # ВКЛАДКА 7: ИНСТРУКЦИЯ
 # ============================================================================
 
-with tabs[6]:
+with tab7:
     st.subheader("📖 Полная инструкция для новичков")
     
     st.markdown("""
@@ -2023,7 +1769,6 @@ with tabs[6]:
     - Учатся на ваших примерах
     - Запоминают важную информацию
     - Адаптируются под ваш стиль
-    - Совершенствуются с каждым диалогом
     
     ---
     
@@ -2032,10 +1777,7 @@ with tabs[6]:
     ### 1. Добавление примеров
     Перейдите на вкладку **ОБУЧЕНИЕ** и добавьте примеры правильных ответов.
     
-    ### 2. Массовое обучение
-    Можно добавить сразу много примеров в формате: Вопрос -> Ответ
-    
-    ### 3. Память агента
+    ### 2. Память агента
     Добавляйте факты, которые агент должен запомнить.
     
     ---
@@ -2048,85 +1790,45 @@ with tabs[6]:
     3. Настраивайте каждый блок
     4. Нажмите **ЗАПУСТИТЬ WORKFLOW**
     
-    ### Типы блоков
-    
-    | Блок | Назначение |
-    |------|------------|
-    | Google Таблицы | Чтение данных из таблиц |
-    | DeepSeek AI | Анализ данных через ИИ |
-    | Условие (русское) | Ветвление логики |
-    | Email | Отправка писем |
-    | Telegram | Уведомления в Telegram |
-    | Цикл | Повторение действий |
-    
     ---
     
     ## 🔀 Русские условия
     
-    Условия пишутся естественным языком:
+    Условия пишутся естественным языком.
     
----
-
-## 💾 Сохранение данных
-
-Все данные автоматически сохраняются в файлы:
-- agents.json - все агенты с обучением и памятью
-- workflows.json - сохраненные автоматизации
-- settings.json - настройки приложения
-
-**Агенты не пропадают после перезапуска!**
-
----
-
-## 🚀 Быстрый старт за 5 минут
-
-1. **Получите API ключ** на platform.deepseek.com
-2. **Вставьте ключ** в боковую панель
-3. **Создайте агента** - заполните имя, роль и промпт
-4. **Обучите агента** - добавьте 2-3 примера
-5. **Начните диалог** - задайте вопрос и получите ответ
-
----
-
-## ❓ Частые вопросы
-
-**Q: Нужно ли платить за DeepSeek API?**  
-A: Нет, DeepSeek предоставляет бесплатный API.
-
-**Q: Сохранятся ли мои агенты после закрытия?**  
-A: Да! Все данные автоматически сохраняются.
-
-**Q: Можно ли поделиться агентом?**  
-A: Да! Используйте кнопку "Экспорт" в боковой панели.
-
----
-
-## 🎉 Поздравляю!
-
-Теперь вы готовы создавать своих ИИ агентов и автоматизации!
-
-Начните с создания первого агента в боковой панели.
-""")
-
-# ============================================================================
-# ФУНКЦИЯ СОХРАНЕНИЯ WORKFLOWS
-# ============================================================================
-
-def save_workflows_to_file(workflows_dict, filepath='workflows.json'):
-"""Сохранение workflows в файл"""
-try:
-    with open(filepath, 'w', encoding='utf-8') as f:
-        json.dump(workflows_dict, f, ensure_ascii=False, indent=2)
-    return True
-except Exception as e:
-    print(f"Ошибка сохранения workflows: {e}")
-    return False
+    ---
+    
+    ## 💾 Сохранение данных
+    
+    Все данные автоматически сохраняются в файлы JSON.
+    
+    ---
+    
+    ## 🚀 Быстрый старт
+    
+    1. Получите API ключ на platform.deepseek.com
+    2. Вставьте ключ в боковую панель
+    3. Создайте агента
+    4. Начните диалог!
+    
+    ---
+    
+    ## ❓ Частые вопросы
+    
+    **Q: Нужно ли платить за DeepSeek API?**  
+    A: Нет, DeepSeek предоставляет бесплатный API.
+    
+    **Q: Сохранятся ли мои агенты после закрытия?**  
+    A: Да! Все данные автоматически сохраняются.
+    
+    **Q: Можно ли поделиться агентом?**  
+    A: Да! Используйте кнопку "Экспорт" в боковой панели.
+    """)
 
 # ============================================================================
 # ИНДИКАТОР АВТОСОХРАНЕНИЯ
 # ============================================================================
 
-if st.session_state.get('auto_save_enabled', True):
 st.markdown("""
 <div class="save-indicator-premium">
     💾 Автосохранение активно
@@ -2139,17 +1841,11 @@ st.markdown("""
 
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; padding: 2rem; color: #888">
-<div style="font-size: 1.2rem; margin-bottom: 0.5rem;">🧠 Workflow Builder PRO v7.0 (Расширенная версия)</div>
-<div style="font-size: 0.8rem;">Обучаемые ИИ агенты | Автосохранение | Премиум дизайн | Русские условия</div>
-<div style="font-size: 0.7rem; margin-top: 0.5rem;">
-    ⭐ Все данные автоматически сохраняются в JSON файлы | После перезапуска всё восстанавливается
-</div>
-<div style="font-size: 0.7rem; margin-top: 0.5rem;">
-    📁 Файлы: agents.json | workflows.json | settings.json
-</div>
-<div style="font-size: 0.7rem; margin-top: 0.5rem; opacity: 0.5;">
-    © 2024 Workflow Builder Pro | Создано для автоматизации
-</div>
+<div style="text-align: center; padding: 1rem; color: #888">
+    <div style="font-size: 1rem;">🧠 Workflow Builder PRO v7.0</div>
+    <div style="font-size: 0.7rem;">Обучаемые ИИ агенты | Автосохранение | Премиум дизайн | Русские условия</div>
+    <div style="font-size: 0.6rem; margin-top: 0.3rem;">
+        📁 Файлы: agents.json | workflows.json | settings.json
+    </div>
 </div>
 """, unsafe_allow_html=True)
