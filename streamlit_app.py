@@ -35,7 +35,7 @@ st.set_page_config(
 )
 
 # ============================================================================
-# ПРЕМИУМ СТИЛИ
+# ПРЕМИУМ СТИЛИ (С ИСПРАВЛЕННОЙ ВИДИМОСТЬЮ ТЕКСТА)
 # ============================================================================
 
 st.markdown("""
@@ -44,13 +44,25 @@ st.markdown("""
     
     * {
         font-family: 'Inter', sans-serif;
+        color: #ffffff !important;
     }
     
     .stApp {
         background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 50%, #24243e 100%);
-        color: #ffffff;
     }
     
+    /* Основной текст */
+    body, p, div, span, label, .stText, .stMarkdown {
+        color: #ffffff !important;
+    }
+    
+    /* Заголовки */
+    h1, h2, h3, h4, h5, h6, .stHeading {
+        color: #ffffff !important;
+        font-weight: 700;
+    }
+    
+    /* Main header */
     .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
         background-size: 200% 200%;
@@ -63,27 +75,27 @@ st.markdown("""
         border: 1px solid rgba(255,255,255,0.1);
     }
     
+    .main-header h1 {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #ffffff !important;
+        margin: 0;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .main-header p {
+        font-size: 1rem;
+        color: rgba(255,255,255,0.95) !important;
+        margin-top: 0.5rem;
+    }
+    
     @keyframes gradientShift {
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
     }
     
-    .main-header h1 {
-        font-size: 2.5rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, #fff, #ffd89b);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin: 0;
-    }
-    
-    .main-header p {
-        font-size: 1rem;
-        color: rgba(255,255,255,0.95);
-        margin-top: 0.5rem;
-    }
-    
+    /* Agent cards */
     .agent-card {
         background: linear-gradient(135deg, rgba(26,26,46,0.95), rgba(22,30,62,0.95));
         backdrop-filter: blur(10px);
@@ -105,6 +117,11 @@ st.markdown("""
         background: linear-gradient(135deg, rgba(10,46,31,0.95), rgba(10,26,16,0.95));
     }
     
+    .agent-card strong, .agent-card div {
+        color: #ffffff !important;
+    }
+    
+    /* Chat messages */
     .chat-message-user {
         background: linear-gradient(135deg, #667eea, #764ba2);
         border-radius: 20px;
@@ -114,6 +131,7 @@ st.markdown("""
         margin-left: auto;
         box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         animation: slideInRight 0.3s ease;
+        color: #ffffff !important;
     }
     
     .chat-message-agent {
@@ -124,6 +142,11 @@ st.markdown("""
         max-width: 80%;
         border-left: 4px solid #4ECDC4;
         animation: slideInLeft 0.3s ease;
+        color: #ffffff !important;
+    }
+    
+    .chat-message-user strong, .chat-message-agent strong {
+        color: #ffffff !important;
     }
     
     @keyframes slideInRight {
@@ -136,6 +159,7 @@ st.markdown("""
         to { opacity: 1; transform: translateX(0); }
     }
     
+    /* Stat cards */
     .stat-card-glass {
         background: rgba(255,255,255,0.08);
         backdrop-filter: blur(10px);
@@ -152,14 +176,17 @@ st.markdown("""
         border-color: #4ECDC4;
     }
     
+    .stat-card-glass div {
+        color: #ffffff !important;
+    }
+    
     .stat-number {
         font-size: 2rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #fff, #4ECDC4);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: #4ECDC4 !important;
     }
     
+    /* Workflow nodes */
     .workflow-node {
         background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(22,30,62,0.9));
         backdrop-filter: blur(10px);
@@ -185,6 +212,11 @@ st.markdown("""
         background: linear-gradient(135deg, rgba(62,26,26,0.9), rgba(42,15,15,0.9));
     }
     
+    .workflow-node div, .workflow-node span {
+        color: #ffffff !important;
+    }
+    
+    /* Training cards */
     .training-card-premium {
         background: linear-gradient(135deg, rgba(26,26,46,0.9), rgba(22,30,62,0.9));
         border-radius: 10px;
@@ -194,10 +226,15 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
+    .training-card-premium strong, .training-card-premium div {
+        color: #ffffff !important;
+    }
+    
     .training-card-premium:hover {
         transform: translateX(5px);
     }
     
+    /* Memory boxes */
     .memory-box {
         background: rgba(30,30,46,0.9);
         backdrop-filter: blur(10px);
@@ -205,8 +242,14 @@ st.markdown("""
         border-radius: 10px;
         border-left: 4px solid #ffa500;
         margin: 0.5rem 0;
+        color: #ffffff !important;
     }
     
+    .memory-box strong, .memory-box div {
+        color: #ffffff !important;
+    }
+    
+    /* Info boxes */
     .info-box-premium {
         background: rgba(30,30,46,0.9);
         backdrop-filter: blur(10px);
@@ -214,11 +257,17 @@ st.markdown("""
         border-radius: 10px;
         border-left: 4px solid #4ECDC4;
         margin: 1rem 0;
+        color: #ffffff !important;
     }
     
+    .info-box-premium h4, .info-box-premium p {
+        color: #ffffff !important;
+    }
+    
+    /* Buttons */
     .stButton > button {
         background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        color: #ffffff !important;
         border: none;
         border-radius: 10px;
         padding: 0.5rem 1rem;
@@ -231,19 +280,27 @@ st.markdown("""
         box-shadow: 0 5px 15px rgba(102,126,234,0.3);
     }
     
+    /* Input fields */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {
         background: rgba(255,255,255,0.08);
         border: 1px solid rgba(255,255,255,0.1);
         border-radius: 10px;
-        color: white;
+        color: #ffffff !important;
         padding: 0.5rem;
     }
     
-    .stTextInput > div > div > input:focus, .stTextArea > div > div > textarea:focus {
+    .stTextInput > div > div > input::placeholder, 
+    .stTextArea > div > div > textarea::placeholder {
+        color: rgba(255,255,255,0.5) !important;
+    }
+    
+    .stTextInput > div > div > input:focus, 
+    .stTextArea > div > div > textarea:focus {
         border-color: #4ECDC4;
         box-shadow: 0 0 0 2px rgba(78,205,196,0.2);
     }
     
+    /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0.5rem;
         background: rgba(255,255,255,0.05);
@@ -256,13 +313,15 @@ st.markdown("""
         padding: 0.5rem 1rem;
         font-weight: 600;
         transition: all 0.3s ease;
+        color: rgba(255,255,255,0.7) !important;
     }
     
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #667eea, #764ba2);
-        color: white;
+        color: #ffffff !important;
     }
     
+    /* Progress bar */
     .stProgress > div > div {
         background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
         background-size: 200% 100%;
@@ -274,6 +333,7 @@ st.markdown("""
         100% { background-position: 200% 50%; }
     }
     
+    /* Scrollbar */
     ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -289,6 +349,11 @@ st.markdown("""
         border-radius: 10px;
     }
     
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #764ba2, #f093fb);
+    }
+    
+    /* Badges */
     .badge-premium {
         display: inline-block;
         padding: 0.2rem 0.6rem;
@@ -297,14 +362,16 @@ st.markdown("""
         font-size: 0.7rem;
         font-weight: 600;
         margin: 0.2rem;
+        color: #ffffff !important;
     }
     
+    /* Save indicator */
     .save-indicator-premium {
         position: fixed;
         bottom: 20px;
         right: 20px;
         background: linear-gradient(135deg, #00ff88, #00bfff);
-        color: #000;
+        color: #000000 !important;
         padding: 5px 12px;
         border-radius: 20px;
         font-size: 11px;
@@ -319,11 +386,61 @@ st.markdown("""
         100% { transform: scale(1); opacity: 1; }
     }
     
-    h1, h2, h3, h4, h5, h6 {
-        font-weight: 700;
-        background: linear-gradient(135deg, #fff, #4ECDC4);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+    /* Selectbox */
+    .stSelectbox > div > div {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 10px;
+        color: #ffffff !important;
+    }
+    
+    .stSelectbox label {
+        color: #ffffff !important;
+    }
+    
+    /* Checkbox */
+    .stCheckbox label {
+        color: #ffffff !important;
+    }
+    
+    /* Expander */
+    .streamlit-expanderHeader {
+        color: #ffffff !important;
+        background: rgba(255,255,255,0.05);
+        border-radius: 10px;
+    }
+    
+    .streamlit-expanderContent {
+        background: rgba(26,26,46,0.5);
+        border-radius: 10px;
+    }
+    
+    /* Success/Info/Warning/Error messages */
+    .stAlert {
+        border-radius: 10px;
+    }
+    
+    .stAlert > div {
+        color: #ffffff !important;
+    }
+    
+    /* Metrics */
+    .stMetric label, .stMetric .stMetric-value, .stMetric .stMetric-delta {
+        color: #ffffff !important;
+    }
+    
+    /* Dataframe */
+    .stDataFrame {
+        color: #ffffff !important;
+    }
+    
+    .stDataFrame table {
+        color: #ffffff !important;
+    }
+    
+    /* Code blocks */
+    .stCodeBlock {
+        background: rgba(0,0,0,0.3) !important;
     }
     
     hr {
@@ -340,7 +457,7 @@ st.markdown("""
 <div class="main-header">
     <h1>🧠 WORKFLOW BUILDER PRO v7.0</h1>
     <p>Обучаемые ИИ агенты | Сохранение контекста | Персональные помощники | Русские условия</p>
-    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 0.5rem;">
+    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
         <span class="badge-premium">✨ ИИ Агенты</span>
         <span class="badge-premium">💾 Автосохранение</span>
         <span class="badge-premium">🎨 Премиум дизайн</span>
@@ -1211,8 +1328,8 @@ with tab1:
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
             <div style="font-size: 3rem;">{current_agent.avatar_emoji}</div>
             <div>
-                <h2 style="margin: 0;">{current_agent.name}</h2>
-                <p style="margin: 0; opacity: 0.8;">{current_agent.role}</p>
+                <h2 style="margin: 0; color: #ffffff;">{current_agent.name}</h2>
+                <p style="margin: 0; opacity: 0.8; color: #ffffff;">{current_agent.role}</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1281,8 +1398,8 @@ with tab2:
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
             <div style="font-size: 3rem;">{current_agent.avatar_emoji}</div>
             <div>
-                <h2 style="margin: 0;">Обучение {current_agent.name}</h2>
-                <p style="margin: 0; opacity: 0.8;">Обучите агента правильным ответам на ваши вопросы</p>
+                <h2 style="margin: 0; color: #ffffff;">Обучение {current_agent.name}</h2>
+                <p style="margin: 0; opacity: 0.8; color: #ffffff;">Обучите агента правильным ответам на ваши вопросы</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1348,8 +1465,8 @@ with tab3:
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
             <div style="font-size: 3rem;">🧠</div>
             <div>
-                <h2 style="margin: 0;">Память {current_agent.name}</h2>
-                <p style="margin: 0; opacity: 0.8;">Агент запоминает важную информацию</p>
+                <h2 style="margin: 0; color: #ffffff;">Память {current_agent.name}</h2>
+                <p style="margin: 0; opacity: 0.8; color: #ffffff;">Агент запоминает важную информацию</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1420,8 +1537,8 @@ with tab4:
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
             <div style="font-size: 3rem;">📊</div>
             <div>
-                <h2 style="margin: 0;">Аналитика {current_agent.name}</h2>
-                <p style="margin: 0; opacity: 0.8;">Статистика и метрики производительности</p>
+                <h2 style="margin: 0; color: #ffffff;">Аналитика {current_agent.name}</h2>
+                <p style="margin: 0; opacity: 0.8; color: #ffffff;">Статистика и метрики производительности</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1431,21 +1548,21 @@ with tab4:
             st.markdown(f"""
             <div class="stat-card-glass">
                 <div class="stat-number">{current_agent.stats['total_trainings']}</div>
-                <div>🎓 Обучений</div>
+                <div style="color: #ffffff;">🎓 Обучений</div>
             </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
             <div class="stat-card-glass">
                 <div class="stat-number">{current_agent.stats['total_conversations']}</div>
-                <div>💬 Диалогов</div>
+                <div style="color: #ffffff;">💬 Диалогов</div>
             </div>
             """, unsafe_allow_html=True)
         with col3:
             st.markdown(f"""
             <div class="stat-card-glass">
                 <div class="stat-number">{current_agent.stats['success_rate']:.0f}%</div>
-                <div>✅ Успешность</div>
+                <div style="color: #ffffff;">✅ Успешность</div>
             </div>
             """, unsafe_allow_html=True)
         with col4:
@@ -1453,7 +1570,7 @@ with tab4:
             st.markdown(f"""
             <div class="stat-card-glass">
                 <div class="stat-number">{learned_from}</div>
-                <div>📚 Выучено фактов</div>
+                <div style="color: #ffffff;">📚 Выучено фактов</div>
             </div>
             """, unsafe_allow_html=True)
         
@@ -1556,15 +1673,15 @@ with tab5:
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <span style="font-size: 1.2rem;">{block.get('icon', '•')}</span>
-                            <span style="font-weight: bold;"> {block.get('name', 'Block')}</span>
-                            <span style="font-size: 0.8rem;"> Шаг {i+1}</span>
+                            <span style="font-weight: bold; color: #ffffff;"> {block.get('name', 'Block')}</span>
+                            <span style="font-size: 0.8rem; color: #ffffff;"> Шаг {i+1}</span>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
                 if i < len(st.session_state.workflow) - 1:
-                    st.markdown('<div style="text-align: center; font-size: 1.2rem;">▼</div>', unsafe_allow_html=True)
+                    st.markdown('<div style="text-align: center; font-size: 1.2rem; color: #ffffff;">▼</div>', unsafe_allow_html=True)
                 
                 with st.expander(f"⚙️ Настроить {block.get('name', 'Block')}"):
                     block_type = block.get('type', '')
@@ -1841,11 +1958,11 @@ st.markdown("""
 
 st.markdown("---")
 st.markdown("""
-<div style="text-align: center; padding: 1rem; color: #888">
+<div style="text-align: center; padding: 1rem; color: #ffffff">
     <div style="font-size: 1rem;">🧠 Workflow Builder PRO v7.0</div>
     <div style="font-size: 0.7rem;">Обучаемые ИИ агенты | Автосохранение | Премиум дизайн | Русские условия</div>
     <div style="font-size: 0.6rem; margin-top: 0.3rem;">
-        📁 Файлы: agents.json | workflows.json | settings.json
+        📁 Файлы: agents.json | workflows.json
     </div>
 </div>
 """, unsafe_allow_html=True)
