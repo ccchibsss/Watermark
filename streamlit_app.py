@@ -16,10 +16,9 @@ import time
 import re
 import hashlib
 import os
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Optional, Any
 import plotly.express as px
 from openai import OpenAI
-from pathlib import Path
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -92,6 +91,9 @@ class GoogleSheetsManager:
     
     def open_sheet(self, sheet_url: str, worksheet_name: str = None):
         try:
+            if self.client is None:
+                st.error("Клиент Google Sheets не инициализирован. Проверьте JSON-ключ.")
+                return False
             if '/d/' in sheet_url:
                 sheet_id = sheet_url.split('/d/')[1].split('/')[0]
             else:
@@ -180,7 +182,7 @@ class VoiceInput:
             return f"❌ Ошибка: {e}"
 
 # ============================================================================ 
-# НАЗКЕЙКА СТРАНИЦЫ
+# НАСТРОЙКА СТРАНИЦЫ
 # ============================================================================
 
 st.set_page_config(
@@ -936,10 +938,14 @@ class WorkflowExecutor:
         
         if not sheet_url:
             return {'error': 'URL не указан'}
+        if not credentials_json:
+            return {'error': 'Не указан JSON-ключ сервисного аккаунта'}
         
         try:
             if not self.gs_manager:
                 self.gs_manager = GoogleSheetsManager(credentials_json)
+                if self.gs_manager.client is None:
+                    return {'error': 'Не удалось аутентифицироваться в Google Sheets'}
             if self.gs_manager.open_sheet(sheet_url, config.get('worksheet_name')):
                 data = self.gs_manager.get_all_data()
                 return {
@@ -959,10 +965,14 @@ class WorkflowExecutor:
         
         if not sheet_url:
             return {'error': 'URL не указан'}
+        if not credentials_json:
+            return {'error': 'Не указан JSON-ключ сервисного аккаунта'}
         
         try:
             if not self.gs_manager:
                 self.gs_manager = GoogleSheetsManager(credentials_json)
+                if self.gs_manager.client is None:
+                    return {'error': 'Не удалось аутентифицироваться в Google Sheets'}
             if self.gs_manager.open_sheet(sheet_url, config.get('worksheet_name')):
                 max_col = 26
                 row_data = [''] * max_col
@@ -2008,8 +2018,8 @@ with tabs[6]:
         1. Добавьте блок **"Google Sheets (запись)"** в workflow
         2. Настройте маппинг колонок:
             3. Переменные `{{имя}}`, `{{email}}`, `{{сообщение}}` будут подставлены из контекста выполнения
-4. Данные будут добавлены в конец таблицы
-""")
+        4. Данные будут добавлены в конец таблицы
+        """)
 
 # ============================================================================ 
 # ВКЛАДКА 8: ГОЛОСОВОЙ ВВОД
@@ -2120,8 +2130,20 @@ with tabs[8]:
     ---
 
     ## 🔀 Русские условия
+    Вы можете писать логические условия на естественном русском языке. Примеры:
+    - «если цена больше 1000 то отправить уведомление»
+    - «если статус равно 'успех' иначе отметить ошибку»
+    - «если текст содержит срочно то выделить красным»
+    Система автоматически преобразует их в исполняемый код.
+
+    ---
+
+    ## 💡 Советы
+    - Чем больше примеров обучения – тем точнее ответы агента.
+    - Сохраняйте важную информацию в памяти агента.
+    - Экспортируйте агентов для обмена с коллегами.
+    - Используйте мобильную версию для быстрых ответов на ходу.
     """)
 
-    st.markdown("""
-    ВНИМАНИЕ: после добавления этого раздела можно расширять, дописывать примеры и инструкции по мере выхода обновлений.
-    """)
+    st.markdown("---")
+    st.success("🎉 Теперь вы полностью готовы к работе с Workflow Builder Pro v7.0!")
