@@ -202,9 +202,53 @@ try:
 except:
     pass
 
-# Стили CSS (с улучшенной видимостью для мобильных)
+# Стили CSS (полностью переработаны для тёмной темы и читаемости)
 st.markdown(f"""
 <style>
+    /* ===== ТЁМНАЯ ТЕМА ПО УМОЛЧАНИЮ ===== */
+    [data-testid="stAppViewContainer"], 
+    [data-testid="stSidebar"] {{
+        background-color: #0e1117;
+    }}
+    [data-testid="stSidebar"] {{
+        background-color: #1a1a2e;
+        color: #fafafa;
+    }}
+    /* Текст в боковой панели */
+    [data-testid="stSidebar"] .stMarkdown, 
+    [data-testid="stSidebar"] label, 
+    [data-testid="stSidebar"] .stTextInput input, 
+    [data-testid="stSidebar"] .stTextArea textarea,
+    [data-testid="stSidebar"] .stButton button,
+    [data-testid="stSidebar"] .stSelectbox label {{
+        color: #fafafa !important;
+    }}
+    [data-testid="stSidebar"] .stTextInput input, 
+    [data-testid="stSidebar"] .stTextArea textarea {{
+        background: rgba(255,255,255,0.1) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+    }}
+    [data-testid="stSidebar"] .stButton button {{
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+    }}
+
+    /* Основные заголовки и текст */
+    .stMarkdown, .stText, .stCaption, label, .stSelectbox label, .stCheckbox label {{
+        color: #e0e0e0;
+    }}
+
+    /* Поля ввода глобально */
+    input, textarea {{
+        color: #e0e0e0 !important;
+        background: rgba(255,255,255,0.08) !important;
+        border: 1px solid rgba(255,255,255,0.15) !important;
+    }}
+    input::placeholder, textarea::placeholder {{
+        color: rgba(255,255,255,0.5) !important;
+    }}
+
     /* Мобильная адаптация */
     @media (max-width: 768px) {{
         .main-header {{
@@ -380,17 +424,6 @@ st.markdown(f"""
     div[data-testid="stExpander"] summary {{
         color: white;
         font-weight: bold;
-    }}
-    /* Улучшенная видимость текста */
-    .stMarkdown, .stText, .stCaption, label, .stSelectbox label, .stCheckbox label {{
-        color: #ffffff !important;
-    }}
-    input, textarea {{
-        color: #ffffff !important;
-        background: rgba(255,255,255,0.1) !important;
-    }}
-    input::placeholder, textarea::placeholder {{
-        color: rgba(255,255,255,0.5) !important;
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -1741,7 +1774,7 @@ with tabs[4]:
                         config['subject'] = st.text_input("Тема", config.get('subject', 'Уведомление'), key=f"subj_{i}")
                         config['body'] = st.text_area("Сообщение", config.get('body', ''), height=80, key=f"body_{i}")
                         config['sender_email'] = st.text_input("Email отправителя", config.get('sender_email', sender_email), key=f"from_{i}")
-                        # ИСПРАВЛЕННАЯ СТРОКА: позиционные аргументы перед именованными
+                        # Исправленная строка: позиционные аргументы перед именованными
                         config['sender_password'] = st.text_input("Пароль", config.get('sender_password', sender_password), type="password", key=f"pass_{i}")
                         st.caption("💡 Используйте {{переменная}} для подстановки из контекста")
                     
