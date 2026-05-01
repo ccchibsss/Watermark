@@ -44,15 +44,25 @@ st.markdown("""
     
     * {
         font-family: 'Inter', sans-serif;
-        color: #ffffff !important;
     }
     
+    /* Главный фон приложения */
     .stApp {
         background: linear-gradient(135deg, #0f0c29 0%, #1a1a3e 50%, #24243e 100%);
     }
     
-    /* Основной текст */
-    body, p, div, span, label, .stText, .stMarkdown {
+    /* Все блоки с белым фоном делаем прозрачными или тёмными */
+    .stApp > header {
+        background-color: transparent;
+    }
+    
+    /* Основные контейнеры */
+    .main .block-container {
+        background: transparent;
+    }
+    
+    /* Все тексты по умолчанию - белые */
+    body, .stApp, div, p, span, label, .stMarkdown, .stText, .stCaption {
         color: #ffffff !important;
     }
     
@@ -282,8 +292,8 @@ st.markdown("""
     
     /* Input fields */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.15) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
         border-radius: 10px;
         color: #ffffff !important;
         padding: 0.5rem;
@@ -291,13 +301,39 @@ st.markdown("""
     
     .stTextInput > div > div > input::placeholder, 
     .stTextArea > div > div > textarea::placeholder {
-        color: rgba(255,255,255,0.5) !important;
+        color: rgba(255,255,255,0.6) !important;
     }
     
     .stTextInput > div > div > input:focus, 
     .stTextArea > div > div > textarea:focus {
-        border-color: #4ECDC4;
+        border-color: #4ECDC4 !important;
         box-shadow: 0 0 0 2px rgba(78,205,196,0.2);
+    }
+    
+    /* Selectbox */
+    .stSelectbox > div > div {
+        background: rgba(255,255,255,0.15) !important;
+        border: 1px solid rgba(255,255,255,0.2) !important;
+        border-radius: 10px;
+        color: #ffffff !important;
+    }
+    
+    .stSelectbox label {
+        color: #ffffff !important;
+    }
+    
+    .stSelectbox > div > div > div {
+        color: #ffffff !important;
+    }
+    
+    /* Checkbox */
+    .stCheckbox label {
+        color: #ffffff !important;
+    }
+    
+    /* Radio */
+    .stRadio label {
+        color: #ffffff !important;
     }
     
     /* Tabs */
@@ -386,32 +422,19 @@ st.markdown("""
         100% { transform: scale(1); opacity: 1; }
     }
     
-    /* Selectbox */
-    .stSelectbox > div > div {
-        background: rgba(255,255,255,0.08);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 10px;
-        color: #ffffff !important;
-    }
-    
-    .stSelectbox label {
-        color: #ffffff !important;
-    }
-    
-    /* Checkbox */
-    .stCheckbox label {
-        color: #ffffff !important;
-    }
-    
     /* Expander */
     .streamlit-expanderHeader {
         color: #ffffff !important;
-        background: rgba(255,255,255,0.05);
+        background: rgba(255,255,255,0.1) !important;
         border-radius: 10px;
     }
     
+    .streamlit-expanderHeader:hover {
+        background: rgba(255,255,255,0.15) !important;
+    }
+    
     .streamlit-expanderContent {
-        background: rgba(26,26,46,0.5);
+        background: rgba(26,26,46,0.7) !important;
         border-radius: 10px;
     }
     
@@ -422,6 +445,20 @@ st.markdown("""
     
     .stAlert > div {
         color: #ffffff !important;
+    }
+    
+    /* Success alert background fix */
+    div[data-testid="stAlert"] {
+        background-color: rgba(0,255,136,0.2) !important;
+    }
+    
+    div[data-testid="stAlert"] div {
+        color: #ffffff !important;
+    }
+    
+    /* Info alert */
+    div[data-testid="stAlert"]:has(.stAlert) {
+        background-color: rgba(78,205,196,0.2) !important;
     }
     
     /* Metrics */
@@ -436,11 +473,61 @@ st.markdown("""
     
     .stDataFrame table {
         color: #ffffff !important;
+        background: rgba(0,0,0,0.3) !important;
+    }
+    
+    .stDataFrame th, .stDataFrame td {
+        color: #ffffff !important;
     }
     
     /* Code blocks */
     .stCodeBlock {
+        background: rgba(0,0,0,0.4) !important;
+        border-radius: 10px;
+    }
+    
+    .stCodeBlock pre, .stCodeBlock code {
+        color: #00ff88 !important;
+    }
+    
+    /* JSON viewer */
+    .stJson {
         background: rgba(0,0,0,0.3) !important;
+        color: #00ff88 !important;
+    }
+    
+    /* Slider */
+    .stSlider label {
+        color: #ffffff !important;
+    }
+    
+    .stSlider div[data-baseweb="slider"] div {
+        background: #4ECDC4 !important;
+    }
+    
+    /* Number input */
+    .stNumberInput label {
+        color: #ffffff !important;
+    }
+    
+    .stNumberInput input {
+        color: #ffffff !important;
+        background: rgba(255,255,255,0.15) !important;
+    }
+    
+    /* File uploader */
+    .stFileUploader label {
+        color: #ffffff !important;
+    }
+    
+    .stFileUploader div {
+        color: #ffffff !important;
+    }
+    
+    /* Download button */
+    .stDownloadButton button {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: #ffffff !important;
     }
     
     hr {
@@ -448,6 +535,30 @@ st.markdown("""
         height: 1px;
         background: linear-gradient(90deg, transparent, #4ECDC4, transparent);
         margin: 1.5rem 0;
+    }
+    
+    /* Sidebar */
+    .css-1d391kg, .css-1lcbmhc {
+        background: rgba(15,12,41,0.8);
+    }
+    
+    .sidebar .sidebar-content {
+        background: rgba(15,12,41,0.9);
+    }
+    
+    /* Fix for white backgrounds */
+    div[data-testid="stDecoration"] {
+        background: transparent;
+    }
+    
+    /* All block containers */
+    .block-container {
+        background: transparent;
+    }
+    
+    /* Make all backgrounds dark */
+    .st-bw, .st-c0, .st-c1, .st-c2, .st-c3 {
+        background: transparent !important;
     }
 </style>
 """, unsafe_allow_html=True)
