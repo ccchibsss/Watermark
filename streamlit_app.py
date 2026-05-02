@@ -1,27 +1,22 @@
 """
 ================================================================================
-WORKFLOW BUILDER PRO v9.0 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
+WORKFLOW BUILDER PRO v9.0.1 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
 Обучаемые ИИ-агенты | Расширенная работа с таблицами | Голосовой ввод | Мобильная адаптация
 ================================================================================
 
-Описание:
-    Платформа для создания автоматизированных рабочих процессов с обучаемыми 
-    ИИ-агентами, поддержкой русского языка и интеграцией с таблицами.
-
-Особенности:
-    • Монопоточная архитектура (без asyncio/multiprocessing)
-    • Полная типизация и документация
-    • Расширенная работа с Google Sheets и Excel
-    • ИИ-анализ и трансформация данных
-    • Голосовой ввод/вывод на русском языке
-    • Парсер условий на естественном русском языке
-    • Мобильная адаптация интерфейса
+Исправления v9.0.1:
+    ✅ Белый текст на всех тёмных фонах (полный CSS)
+    ✅ Исправлена ошибка импорта: KeyError: 'role' → безопасная десериализация
+    ✅ Валидация session_state при загрузке агентов
+    ✅ Полная монопоточная архитектура (без asyncio/multiprocessing)
+    ✅ Улучшена читаемость: типизация, docstrings, логирование
 
 Зависимости:
-    pip install streamlit pandas openpyxl openai plotly requests gspread google-auth SpeechRecognition gTTS
+    pip install streamlit pandas openpyxl openai plotly requests
+    pip install SpeechRecognition gTTS  # опционально, для голоса
 
 Автор: Workflow Builder Team
-Версия: 9.0.0
+Версия: 9.0.1
 Дата: 2026
 Лицензия: MIT
 ================================================================================
@@ -96,7 +91,7 @@ class AppConfig:
     """Глобальная конфигурация приложения"""
     APP_TITLE: str = "Workflow Builder Pro – Голосовой помощник"
     APP_ICON: str = "🧠"
-    APP_VERSION: str = "9.0.0"
+    APP_VERSION: str = "9.0.1"
     
     # API настройки
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
@@ -253,10 +248,10 @@ class WorkflowStatus(Enum):
 
 
 # ============================================================================
-# CSS СТИЛИ С РАСШИРЕННОЙ МОБИЛЬНОЙ АДАПТАЦИЕЙ
+# CSS СТИЛИ С РАСШИРЕННОЙ МОБИЛЬНОЙ АДАПТАЦИЕЙ – ИСПРАВЛЕНО: БЕЛЫЙ ТЕКСТ
 # ============================================================================
 def get_app_styles() -> str:
-    """Возвращает CSS стили для приложения"""
+    """Возвращает CSS стили для приложения с белым текстом на тёмном фоне"""
     return """
     <style>
         /* ========== БАЗОВЫЕ СТИЛИ ========== */
@@ -268,6 +263,43 @@ def get_app_styles() -> str:
             --warning-color: #ffa500;
             --accent-color: #4ECDC4;
             --card-bg: #1e1e2e;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255,255,255,0.92);
+            --text-muted: rgba(255,255,255,0.7);
+            --bg-input: #2a2a3e;
+        }
+        
+        /* Глобальный сброс цвета текста для тёмных секций */
+        .main-header,
+        .agent-card,
+        .workflow-node,
+        .memory-box,
+        .condition-box,
+        .info-box,
+        .stat-card,
+        div[data-testid="stExpander"] details,
+        div[data-testid="stExpander"] summary,
+        div[data-testid="stExpander"] div,
+        div[data-testid="stExpander"] p,
+        div[data-testid="stExpander"] span,
+        div[data-testid="stExpander"] label,
+        div[data-testid="stExpander"] small,
+        .stMarkdown,
+        .stMarkdown p,
+        .stMarkdown span,
+        .stMarkdown strong,
+        .stMarkdown code {
+            color: var(--text-primary) !important;
+        }
+        
+        .agent-card small,
+        .workflow-node small,
+        .memory-box small,
+        .condition-box small,
+        .info-box small,
+        .agent-stats,
+        .stCaption {
+            color: var(--text-muted) !important;
         }
         
         .main-header {
@@ -286,14 +318,14 @@ def get_app_styles() -> str:
         }
         
         .main-header h1 { 
-            color: white; 
+            color: white !important; 
             margin: 0; 
             font-size: 2.5rem; 
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
         
         .main-header p { 
-            color: rgba(255,255,255,0.95); 
+            color: rgba(255,255,255,0.95) !important; 
             margin: 0.5rem 0 0 0; 
             font-size: 1.1rem;
         }
@@ -305,6 +337,7 @@ def get_app_styles() -> str:
             border-radius: 20px;
             font-size: 0.85rem;
             margin-top: 0.5rem;
+            color: white !important;
         }
         
         /* ========== КАРТОЧКИ АГЕНТОВ ========== */
@@ -318,6 +351,7 @@ def get_app_styles() -> str:
             cursor: pointer;
             position: relative;
             overflow: hidden;
+            color: var(--text-primary) !important;
         }
         
         .agent-card::before {
@@ -348,6 +382,7 @@ def get_app_styles() -> str:
             margin-top: 0.5rem;
             font-size: 0.8rem;
             opacity: 0.9;
+            color: var(--text-muted) !important;
         }
         
         /* ========== СТАТИСТИКА ========== */
@@ -356,7 +391,7 @@ def get_app_styles() -> str:
             padding: 1.2rem; 
             border-radius: 15px; 
             text-align: center; 
-            color: white;
+            color: white !important;
             transition: transform 0.3s, box-shadow 0.3s;
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
@@ -370,12 +405,14 @@ def get_app_styles() -> str:
             margin: 0; 
             font-size: 2rem; 
             font-weight: bold;
+            color: white !important;
         }
         
         .stat-card p { 
             margin: 0.3rem 0 0 0; 
             opacity: 0.9;
             font-size: 0.9rem;
+            color: rgba(255,255,255,0.95) !important;
         }
         
         /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ ========== */
@@ -385,6 +422,7 @@ def get_app_styles() -> str:
             border-radius: 10px;
             margin: 0.5rem 0;
             border-left: 4px solid var(--accent-color);
+            color: var(--text-primary) !important;
         }
         
         .memory-box { border-left-color: var(--warning-color); }
@@ -392,6 +430,7 @@ def get_app_styles() -> str:
             border-left-color: var(--warning-color); 
             font-family: 'Courier New', monospace;
             font-size: 0.9rem;
+            color: #e0e0ff !important;
         }
         .info-box { border-left-color: var(--accent-color); }
         
@@ -401,7 +440,7 @@ def get_app_styles() -> str:
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0; 
-            color: white;
+            color: var(--text-primary) !important;
             border-left: 4px solid var(--accent-color); 
             transition: all 0.3s ease;
             position: relative;
@@ -434,7 +473,7 @@ def get_app_styles() -> str:
         .workflow-connector {
             text-align: center;
             font-size: 1.2rem;
-            color: var(--accent-color);
+            color: var(--accent-color) !important;
             margin: 0.3rem 0;
         }
         
@@ -444,6 +483,7 @@ def get_app_styles() -> str:
             font-weight: 600 !important;
             transition: all 0.2s ease;
             border: none !important;
+            color: white !important;
         }
         
         .stButton button:hover { 
@@ -452,16 +492,28 @@ def get_app_styles() -> str:
         }
         
         .stTextArea textarea, 
-        .stTextInput input { 
+        .stTextInput input,
+        .stSelectbox select,
+        .stNumberInput input { 
             border-radius: 10px; 
             border: 1px solid #444 !important;
             transition: border-color 0.2s;
+            color: var(--text-primary) !important;
+            background: var(--bg-input) !important;
         }
         
         .stTextArea textarea:focus,
-        .stTextInput input:focus {
+        .stTextInput input:focus,
+        .stSelectbox select:focus,
+        .stNumberInput input:focus {
             border-color: var(--accent-color) !important;
             box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.3);
+        }
+        
+        .stTextArea textarea::placeholder,
+        .stTextInput input::placeholder,
+        .stSelectbox select::placeholder {
+            color: rgba(255,255,255,0.5) !important;
         }
         
         /* ========== EXPANDER ========== */
@@ -470,12 +522,22 @@ def get_app_styles() -> str:
             border-radius: 15px; 
             border: none;
             margin: 0.5rem 0;
+            color: var(--text-primary) !important;
         }
         
         div[data-testid="stExpander"] summary { 
-            color: white; 
+            color: white !important; 
             font-weight: 600;
             padding: 0.8rem 1rem;
+        }
+        
+        /* Вложенный контент в expander'ах */
+        div[data-testid="stExpander"] div[data-testid="stMarkdownContainer"],
+        div[data-testid="stExpander"] p,
+        div[data-testid="stExpander"] span,
+        div[data-testid="stExpander"] label,
+        div[data-testid="stExpander"] small {
+            color: var(--text-secondary) !important;
         }
         
         /* ========== ТАБЛИЦЫ ========== */
@@ -484,6 +546,57 @@ def get_app_styles() -> str:
             overflow: hidden;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
+        
+        .dataframe th {
+            background: var(--primary-gradient) !important;
+            color: white !important;
+        }
+        
+        .dataframe td {
+            color: var(--text-primary) !important;
+            background: var(--card-bg) !important;
+        }
+        
+        /* ========== CODE BLOCKS ========== */
+        code, pre, .stCode {
+            background: rgba(255,255,255,0.1) !important;
+            color: var(--success-color) !important;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        /* ========== ССЫЛКИ ========== */
+        .agent-card a,
+        .workflow-node a,
+        .memory-box a,
+        .info-box a {
+            color: var(--accent-color) !important;
+            text-decoration: none;
+        }
+        
+        .agent-card a:hover,
+        .workflow-node a:hover,
+        .memory-box a:hover,
+        .info-box a:hover {
+            color: var(--success-color) !important;
+            text-decoration: underline;
+        }
+        
+        /* ========== TAGS ========== */
+        .tag {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin: 0.2rem;
+            color: white !important;
+        }
+        .tag-success { background: rgba(0,255,136,0.2); }
+        .tag-error { background: rgba(255,68,68,0.2); }
+        .tag-warning { background: rgba(255,165,0,0.2); }
+        .tag-info { background: rgba(78,205,196,0.2); }
         
         /* ========== МОБИЛЬНАЯ АДАПТАЦИЯ ========== */
         @media (max-width: 768px) {
@@ -555,20 +668,6 @@ def get_app_styles() -> str:
             border-radius: 4px;
             transition: width 0.3s ease;
         }
-        
-        /* ========== TAGS ========== */
-        .tag {
-            display: inline-block;
-            padding: 0.2rem 0.6rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            margin: 0.2rem;
-        }
-        .tag-success { background: rgba(0,255,136,0.2); color: var(--success-color); }
-        .tag-error { background: rgba(255,68,68,0.2); color: var(--error-color); }
-        .tag-warning { background: rgba(255,165,0,0.2); color: var(--warning-color); }
-        .tag-info { background: rgba(78,205,196,0.2); color: var(--accent-color); }
     </style>
     """
 
@@ -1209,7 +1308,7 @@ class TableManager:
 
 
 # ============================================================================
-# КЛАСС ИИ АГЕНТА
+# КЛАСС ИИ АГЕНТА – ИСПРАВЛЕНО: БЕЗОПАСНАЯ ДЕСЕРИАЛИЗАЦИЯ
 # ============================================================================
 class AIAgent:
     """
@@ -1454,13 +1553,19 @@ class AIAgent:
     
     @classmethod
     def from_dict(cls, data: Dict) -> 'AIAgent':
-        """Десериализует агента из словаря"""
-        agent = cls(
-            name=data['name'],
-            role=data['role'],
-            system_prompt=data['system_prompt'],
-            agent_id=data['id']
-        )
+        """
+        Десериализует агента из словаря.
+        
+        ✅ ИСПРАВЛЕНИЕ: безопасное извлечение с дефолтными значениями
+        вместо прямого доступа data['key'] который вызывает KeyError
+        """
+        # ✅ ИСПРАВЛЕНИЕ: используем .get() с дефолтами вместо прямого доступа
+        name = data.get('name', 'Безымянный агент')
+        role = data.get('role', 'Универсальный помощник')
+        system_prompt = data.get('system_prompt', 'Ты полезный ИИ-ассистент.')
+        agent_id = data.get('id')
+        
+        agent = cls(name, role, system_prompt, agent_id)
         agent.created_at = data.get('created_at', datetime.now().isoformat())
         agent.training_examples = data.get('training_examples', [])
         agent.memory = data.get('memory', [])
@@ -1477,7 +1582,7 @@ class AIAgent:
 
 
 # ============================================================================
-# МЕНЕДЖЕР АГЕНТОВ
+# МЕНЕДЖЕР АГЕНТОВ – ИСПРАВЛЕНО: ВАЛИДАЦИЯ ПРИ ЗАГРУЗКЕ
 # ============================================================================
 class AgentManager:
     """Управляет коллекцией ИИ агентов"""
@@ -1489,15 +1594,25 @@ class AgentManager:
         self.load_agents()
     
     def load_agents(self):
-        """Загружает агентов из session_state"""
+        """
+        Загружает агентов из session_state.
+        
+        ✅ ИСПРАВЛЕНИЕ: валидация данных перед загрузкой для предотвращения
+        ошибки KeyError: 'role' при импорте/загрузке битых данных
+        """
         if 'agents' not in st.session_state:
             default_agents = self._create_default_agents()
             st.session_state.agents = {agent.id: agent.to_dict() for agent in default_agents}
             st.session_state.current_agent_id = default_agents[0].id if default_agents else None
         
-        for agent_id, agent_dict in st.session_state.agents.items():
-            if agent_id not in self.agents:
-                self.agents[agent_id] = AIAgent.from_dict(agent_dict)
+        # ✅ ИСПРАВЛЕНИЕ: безопасная загрузка с проверкой структуры данных
+        for agent_id, agent_dict in dict(st.session_state.agents).items():
+            if isinstance(agent_dict, dict) and 'name' in agent_dict:
+                try:
+                    self.agents[agent_id] = AIAgent.from_dict(agent_dict)
+                except Exception as e:
+                    logger.warning(f"⚠️ Пропущен битый агент {agent_id}: {e}")
+                    continue
         
         self.current_agent_id = st.session_state.get('current_agent_id')
     
@@ -1601,13 +1716,27 @@ class AgentManager:
         """
         try:
             data = json.loads(agent_json)
+            # ✅ ИСПРАВЛЕНИЕ: валидация структуры данных перед загрузкой
+            if not isinstance(data, dict):
+                raise ValueError("JSON должен быть объектом")
+            if 'name' not in data:
+                raise ValueError("Отсутствует обязательное поле 'name'")
+            
             agent = AIAgent.from_dict(data)
             self.agents[agent.id] = agent
             self.save_agents()
             return True
+        except json.JSONDecodeError as e:
+            logger.error(f"Ошибка парсинга JSON: {e}")
+            st.error(f"❌ Неверный формат JSON: {str(e)}")
+            return False
+        except ValueError as e:
+            logger.error(f"Ошибка валидации: {e}")
+            st.error(f"❌ {str(e)}")
+            return False
         except Exception as e:
             logger.error(f"Ошибка импорта агента: {e}")
-            st.error(f"Ошибка импорта: {str(e)}")
+            st.error(f"❌ Ошибка импорта: {str(e)}")
             return False
 
 
@@ -2861,7 +2990,7 @@ def render_help_tab():
     
     ---
     
-    *Workflow Builder Pro v9.0 • Монопоточная версия • © 2026*
+    *Workflow Builder Pro v9.0.1 • Монопоточная версия • © 2026*
     """)
 
 
