@@ -253,10 +253,10 @@ class WorkflowStatus(Enum):
 
 
 # ============================================================================
-# CSS СТИЛИ С РАСШИРЕННОЙ МОБИЛЬНОЙ АДАПТАЦИЕЙ И УЛУЧШЕННОЙ ЧИТАЕМОСТЬЮ
+# CSS СТИЛИ С МАКСИМАЛЬНОЙ ЧИТАЕМОСТЬЮ ТЕКСТА НА ТЁМНОМ ФОНЕ
 # ============================================================================
 def get_app_styles() -> str:
-    """Возвращает CSS стили для приложения с улучшенной читаемостью на тёмном фоне"""
+    """Возвращает CSS стили для приложения с максимальной контрастностью текста"""
     return """
     <style>
         /* ========== БАЗОВЫЕ СТИЛИ ========== */
@@ -268,8 +268,63 @@ def get_app_styles() -> str:
             --warning-color: #ffa500;
             --accent-color: #4ECDC4;
             --card-bg: #1e1e2e;
-            --text-on-dark: #ffffff;
-            --text-secondary-on-dark: #e0e0e0;
+            --text-bright: #ffffff;
+            --text-light: #f0f0f0;
+        }
+        
+        /* ========== ГЛОБАЛЬНОЕ ПЕРЕОПРЕДЕЛЕНИЕ ЦВЕТА ТЕКСТА ========== */
+        * {
+            color: var(--text-bright) !important;
+            opacity: 1 !important;
+        }
+        
+        p, span, div, li, a, label {
+            color: #ffffff !important;
+            opacity: 1 !important;
+        }
+        
+        /* ========== MARKDOWN И ТЕКСТ БОТА - КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ ========== */
+        .stMarkdown p, .stMarkdown div, .stMarkdown span, .stMarkdown label {
+            color: #ffffff !important;
+            opacity: 1 !important;
+            font-weight: 400 !important;
+        }
+        
+        .stMarkdown strong, .stMarkdown b, .stMarkdown h1, .stMarkdown h2, 
+        .stMarkdown h3, .stMarkdown h4, .stMarkdown h5, .stMarkdown h6 {
+            color: #ffffff !important;
+            opacity: 1 !important;
+            font-weight: 600 !important;
+        }
+        
+        /* Сообщения чата */
+        .stChatMessage p, .stChatMessage div, .stChatMessage span {
+            color: #ffffff !important;
+            opacity: 1 !important;
+        }
+        
+        /* ========== ЭЛЕМЕНТЫ STREAMLIT ========== */
+        .element-container p, .element-container div, .element-container span,
+        .element-container label, .element-container strong, .element-container b {
+            color: #ffffff !important;
+            opacity: 1 !important;
+        }
+        
+        .stMarkdownContainer p, .stMarkdownContainer div, .stMarkdownContainer span {
+            color: #ffffff !important;
+            opacity: 1 !important;
+        }
+        
+        /* ========== ЗАГОЛОВКИ И ВАЖНЫЙ ТЕКСТ ========== */
+        h1, h2, h3, h4, h5, h6, strong, b {
+            color: #ffffff !important;
+            opacity: 1 !important;
+        }
+        
+        /* ========== ВТОРОСТЕПЕННЫЙ ТЕКСТ ========== */
+        small, .caption, .stCaption {
+            color: var(--text-light) !important;
+            opacity: 0.95 !important;
         }
         
         .main-header {
@@ -321,11 +376,11 @@ def get_app_styles() -> str:
             cursor: pointer;
             position: relative;
             overflow: hidden;
-            color: var(--text-on-dark) !important;
+            color: var(--text-bright) !important;
         }
         
-        .agent-card * {
-            color: var(--text-on-dark) !important;
+        .agent-card *, .agent-card p, .agent-card span, .agent-card div {
+            color: var(--text-bright) !important;
         }
         
         .agent-card::before {
@@ -356,7 +411,7 @@ def get_app_styles() -> str:
             margin-top: 0.5rem;
             font-size: 0.8rem;
             opacity: 0.9;
-            color: var(--text-secondary-on-dark) !important;
+            color: var(--text-light) !important;
         }
         
         /* ========== СТАТИСТИКА ========== */
@@ -370,7 +425,7 @@ def get_app_styles() -> str:
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
         }
         
-        .stat-card * {
+        .stat-card *, .stat-card p, .stat-card span, .stat-card div {
             color: white !important;
         }
         
@@ -391,28 +446,32 @@ def get_app_styles() -> str:
             font-size: 0.9rem;
         }
         
-        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ - ИСПРАВЛЕНИЕ ЧИТАЕМОСТИ ========== */
+        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ ========== */
         .memory-box, .condition-box, .info-box {
             background: var(--card-bg); 
             padding: 1rem; 
             border-radius: 10px;
             margin: 0.5rem 0;
             border-left: 4px solid var(--accent-color);
-            color: var(--text-on-dark) !important;
+            color: var(--text-bright) !important;
         }
         
-        .memory-box *, .condition-box *, .info-box * {
-            color: var(--text-secondary-on-dark) !important;
+        .memory-box *, .condition-box *, .info-box *,
+        .memory-box p, .condition-box p, .info-box p,
+        .memory-box span, .condition-box span, .info-box span {
+            color: var(--text-bright) !important;
+            opacity: 1 !important;
         }
         
         .memory-box strong, .memory-box b,
         .condition-box strong, .condition-box b,
         .info-box strong, .info-box b {
-            color: var(--text-on-dark) !important;
+            color: #ffffff !important;
+            font-weight: 600 !important;
         }
         
         .memory-box small, .condition-box small, .info-box small {
-            color: var(--text-secondary-on-dark) !important;
+            color: var(--text-light) !important;
         }
         
         .memory-box { border-left-color: var(--warning-color); }
@@ -423,24 +482,25 @@ def get_app_styles() -> str:
         }
         .info-box { border-left-color: var(--accent-color); }
         
-        /* ========== УЗЛЫ WORKFLOW - ИСПРАВЛЕНИЕ ЧИТАЕМОСТИ ========== */
+        /* ========== УЗЛЫ WORKFLOW ========== */
         .workflow-node {
             background: var(--dark-gradient);
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0; 
-            color: var(--text-on-dark) !important;
+            color: var(--text-bright) !important;
             border-left: 4px solid var(--accent-color); 
             transition: all 0.3s ease;
             position: relative;
         }
         
-        .workflow-node * {
-            color: var(--text-on-dark) !important;
+        .workflow-node *, .workflow-node p, .workflow-node span, .workflow-node div {
+            color: var(--text-bright) !important;
+            opacity: 1 !important;
         }
         
         .workflow-node small {
-            color: var(--text-secondary-on-dark) !important;
+            color: var(--text-light) !important;
         }
         
         .workflow-node::after {
@@ -492,13 +552,14 @@ def get_app_styles() -> str:
             border-radius: 10px; 
             border: 1px solid #444 !important;
             transition: border-color 0.2s;
-            color: var(--text-on-dark) !important;
+            color: var(--text-bright) !important;
             background-color: #2a2a3a !important;
         }
         
         .stTextArea textarea::placeholder,
         .stTextInput input::placeholder {
-            color: #aaa !important;
+            color: #999 !important;
+            opacity: 0.8 !important;
         }
         
         .stTextArea textarea:focus,
@@ -507,7 +568,7 @@ def get_app_styles() -> str:
             box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.3);
         }
         
-        /* ========== EXPANDER - ИСПРАВЛЕНИЕ ЧИТАЕМОСТИ ========== */
+        /* ========== EXPANDER ========== */
         div[data-testid="stExpander"] details {
             background: var(--dark-gradient);
             border-radius: 15px; 
@@ -516,13 +577,17 @@ def get_app_styles() -> str:
         }
         
         div[data-testid="stExpander"] summary { 
-            color: var(--text-on-dark) !important; 
+            color: var(--text-bright) !important; 
             font-weight: 600;
             padding: 0.8rem 1rem;
         }
         
-        div[data-testid="stExpander"] details * {
-            color: var(--text-secondary-on-dark) !important;
+        div[data-testid="stExpander"] details *,
+        div[data-testid="stExpander"] details p,
+        div[data-testid="stExpander"] details span,
+        div[data-testid="stExpander"] details div {
+            color: var(--text-bright) !important;
+            opacity: 1 !important;
         }
         
         /* ========== ТАБЛИЦЫ ========== */
@@ -594,7 +659,7 @@ def get_app_styles() -> str:
             border-radius: 10px;
             padding: 0.5rem;
             margin: 0.5rem 0;
-            color: var(--text-on-dark) !important;
+            color: var(--text-bright) !important;
         }
         
         .progress-bar {
@@ -618,41 +683,27 @@ def get_app_styles() -> str:
         .tag-warning { background: rgba(255,165,0,0.2); color: var(--warning-color) !important; }
         .tag-info { background: rgba(78,205,196,0.2); color: var(--accent-color) !important; }
         
-        /* ========== ОБЩИЕ УЛУЧШЕНИЯ ЧИТАЕМОСТИ НА ТЁМНОМ ФОНЕ ========== */
-        b, strong {
-            color: var(--text-on-dark) !important;
-        }
-        
-        small {
-            color: var(--text-secondary-on-dark) !important;
-        }
-        
-        /* Улучшение читаемости в markdown блоках на тёмном фоне */
-        .stMarkdown {
-            color: var(--text-on-dark) !important;
-        }
-        
-        .stMarkdown p, .stMarkdown div {
-            color: var(--text-secondary-on-dark) !important;
-        }
-        
-        .stMarkdown strong, .stMarkdown b {
-            color: var(--text-on-dark) !important;
-        }
-        
-        /* Улучшение читаемости в code блоках */
-        code {
+        /* ========== CODE И СПИСКИ ========== */
+        code, pre, .stCode {
             color: var(--accent-color) !important;
-            background-color: rgba(78, 205, 196, 0.1) !important;
+            background-color: rgba(78, 205, 196, 0.15) !important;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-weight: 500;
         }
         
-        /* Улучшение читаемости списков */
-        ul, ol {
-            color: var(--text-secondary-on-dark) !important;
+        ul, ol, li {
+            color: var(--text-bright) !important;
+            opacity: 1 !important;
         }
         
-        li {
-            color: var(--text-secondary-on-dark) !important;
+        /* ========== ДОПОЛНИТЕЛЬНЫЕ ПРАВИЛА ДЛЯ STREAMLIT ========== */
+        .stAlert, .stInfo, .stSuccess, .stWarning, .stError {
+            color: var(--text-bright) !important;
+        }
+        
+        .stAlert *, .stInfo *, .stSuccess *, .stWarning *, .stError * {
+            color: var(--text-bright) !important;
         }
     </style>
     """
