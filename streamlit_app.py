@@ -51,7 +51,7 @@ import tempfile
 from pathlib import Path
 
 # ============================================================================
-# АВТОСОХРАНЕНИЕ ДАННЫХ
+# АВТОСОХРАНЕНИЕ ДАННЫХ (без ручного экспорта/импорта)
 # ============================================================================
 DATA_DIR = Path(__file__).parent / ".workflow_data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -82,7 +82,7 @@ def load_workflow_auto() -> List[Dict]:
     return []
 
 
-def save_agents_auto(agents_data: Dict):
+def save_agents_auto(agents_ Dict):
     """Автосохранение агентов"""
     try:
         with open(AGENTS_FILE, 'w', encoding='utf-8') as f:
@@ -346,7 +346,7 @@ class WorkflowStatus(Enum):
 
 
 # ============================================================================
-# CSS СТИЛИ
+# CSS СТИЛИ — БЕЛЫЙ ФОН, ЧЁРНЫЙ ТЕКСТ, ЧАТ ИИ
 # ============================================================================
 def get_app_styles() -> str:
     """Возвращает CSS стили с белым фоном и черным текстом"""
@@ -1386,7 +1386,7 @@ class TableManager:
         rules: Optional[Dict] = None
     ):
         """Применяет форматирование к листу Excel"""
-        # Исправление: Получение листа напрямую из словаря sheets
+        # ИСПРАВЛЕНИЕ: Безопасное получение листа
         if not writer.sheets:
             return
         worksheet = list(writer.sheets.values())[0]
@@ -2799,44 +2799,73 @@ def main():
 
 
 def render_chat_tab(agent_manager: AgentManager, api_key: str):
-    """Рендерит вкладку диалога с агентом в стиле чата ИИ"""
+    """Рендерит вкладку диалога с агентом (Чат-интерфейс)"""
     current_agent = agent_manager.get_current_agent()
     
     if not current_agent:
         st.warning("⚠️ Выберите агента в боковой панели")
         return
     
-    # Контейнер для истории чата с прокруткой
+    st.subheader(f"💬 Чат с: {current_agent.name}")
+    
+    # 1. Контейнер для сообщений (высота 500px для скролла)
     chat_container = st.container(height=500, border=False)
     
     with chat_container:
         for msg in st.session_state.agent_messages:
-            if msg['role'] == 'user':
-                st.chat_message("user").write(msg['content'])
+            role = msg['role']
+            content = msg['content']
+            
+            if role == 'user':
+                st.chat_message("user").write(content)
             else:
-                st.chat_message("assistant").write(msg['content'])
-    
-    # Поле ввода всегда снизу
-    st.markdown("---")
-    
-    # Используем chat_input для автоматической очистки после отправки
-    if prompt := st.chat_input("Введите сообщение..."):
-        # Добавляем сообщение пользователя
-        st.session_state.agent_messages.append({'role': 'user', 'content': prompt})
+                st.chat_message("assistant").write(content)
+
+    # 2. Поле ввода (Всегда снизу)
+    # clear_on_submit=True автоматически очищает поле после отправки
+    with st.form("chat_form", clear_on_submit=True):
+        user_input = st.text_area(
+            "Ваше сообщение...", 
+            height=80, 
+            key="chat_input_box",
+            label_visibility="collapsed",
+            placeholder="Напишите сообщение..."
+        )
         
-        # Генерируем ответ
+        # Кнопки
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            # Кнопка отправки внутри формы
+            submit = st.form_submit_button("🚀 Отправить", type="primary", use_container_width=True)
+        with col2:
+            # Можно добавить кнопку голоса
+            pass
+
+    if submit and user_input:
+        # 1. Отображаем сообщение пользователя сразу
+        with chat_container:
+            st.chat_message("user").write(user_input)
+        
+        # 2. Сохраняем в историю
+        st.session_state.agent_messages.append({'role': 'user', 'content': user_input})
+        
+        # 3. Генерируем ответ
         with st.spinner(f"{current_agent.name} думает..."):
-            response = current_agent.generate_response(prompt, api_key)
+            response = current_agent.generate_response(user_input, api_key)
         
-        # Добавляем ответ бота
+        # 4. Отображаем ответ бота
+        with chat_container:
+            st.chat_message("assistant").write(response)
+        
+        # 5. Сохраняем ответ в историю
         st.session_state.agent_messages.append({'role': 'agent', 'content': response})
         
-        # Сохраняем
-        current_agent.add_conversation(prompt, response)
+        # 6. Обновляем статистику агента
+        current_agent.add_conversation(user_input, response)
         agent_manager.save_agents()
         save_messages_auto(st.session_state.agent_messages)
         
-        # Перезагружаем страницу для обновления чата
+        # 7. Перезагружаем (для надежности, хотя стримлит и так обновит)
         st.rerun()
 
 
