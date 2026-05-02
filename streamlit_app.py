@@ -53,7 +53,6 @@ from pathlib import Path
 # ============================================================================
 # АВТОСОХРАНЕНИЕ ДАННЫХ (без ручного экспорта/импорта)
 # ============================================================================
-# Путь для хранения данных
 DATA_DIR = Path(__file__).parent / ".workflow_data"
 DATA_DIR.mkdir(exist_ok=True)
 
@@ -222,7 +221,7 @@ class AppConfig:
         'accent': '#4ECDC4',
         'dark_bg': '#1a1a2e',
         'dark_bg_2': '#16213e',
-        'card_bg': '#1e1e2e'
+        'card_bg': '#ffffff'
     })
 
 
@@ -347,34 +346,33 @@ class WorkflowStatus(Enum):
 
 
 # ============================================================================
-# CSS СТИЛИ С ЧЁРНЫМ ТЕКСТОМ И БЕЗ БОРДЮРОВ В БОКОВОЙ ПАНЕЛИ
+# CSS СТИЛИ — БЕЛЫЙ ФОН, ЧЁРНЫЙ ТЕКСТ, ЦЕНТРИРОВАННАЯ КОРЗИНА
 # ============================================================================
 def get_app_styles() -> str:
-    """Возвращает CSS стили с чёрным текстом на светлых блоках и без бордюров в сайдбаре"""
+    """Возвращает CSS стили с белым фоном как в сайдбаре и центрированной корзиной"""
     return """
     <style>
         /* ========== БАЗОВЫЕ СТИЛИ ========== */
         :root {
             --primary-gradient: linear-gradient(135deg, #6974dc 0%, #764ba2 100%);
-            --dark-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            --dark-gradient: linear-gradient(135deg, #ffffff 0%, #f0f2f6 100%);
             --success-color: #00ff88;
             --error-color: #ff4444;
             --warning-color: #ffa500;
             --accent-color: #4ECDC4;
-            --card-bg: #1e1e2e;
-            --text-on-dark: #ffffff;
+            --card-bg: #ffffff;
+            --text-on-dark: #000000;
             --text-on-light: #000000;
             --text-secondary: #4a4a6a;
-            --border-light: #cccccc;
-            --border-dark: #444466;
-            --block-bg: #6974dc;
-            --block-bg-light: #f0f2f6;
+            --border-light: #e0e0e0;
+            --border-dark: #e0e0e0;
+            --block-bg: #ffffff;
         }
         
-        /* ========== БАЗОВЫЙ ТЕКСТ (для светлого фона Streamlit по умолчанию) ========== */
+        /* ========== БАЗОВЫЙ ТЕКСТ ========== */
         body, .stApp, .main, .block-container {
             color: var(--text-on-light) !important;
-            background-color: #ffffff !important;
+            background-color: #f0f2f6 !important;
         }
         
         p, span, div, li, a, label, h1, h2, h3, h4, h5, h6 {
@@ -390,7 +388,7 @@ def get_app_styles() -> str:
             color: var(--text-secondary) !important;
         }
         
-        /* ========== ПОЛЯ ВВОДА - ЧЁРНЫЙ ТЕКСТ НА БЕЛОМ ФОНЕ ========== */
+        /* ========== ПОЛЯ ВВОДА ========== */
         .stTextInput input,
         .stTextArea textarea,
         .stNumberInput input,
@@ -402,8 +400,9 @@ def get_app_styles() -> str:
         textarea {
             color: #000000 !important;
             background-color: #ffffff !important;
-            border: 2px solid var(--border-light) !important;
-            border-radius: 8px !important;
+            border: none !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
         }
         
         .stTextInput input::placeholder,
@@ -418,87 +417,72 @@ def get_app_styles() -> str:
         .stTextArea textarea:focus,
         input:focus,
         textarea:focus {
-            border-color: var(--accent-color) !important;
-            box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.2) !important;
+            box-shadow: 0 2px 12px rgba(105, 116, 220, 0.3) !important;
             outline: none !important;
         }
         
         /* ========== MARKDOWN И СООБЩЕНИЯ ЧАТА ========== */
         .stMarkdown p, .stMarkdown div, .stMarkdown span, .stMarkdown label {
-            color: var(--text-on-light) !important;
+            color: #000000 !important;
         }
         
         .stMarkdown strong, .stMarkdown b {
-            color: var(--text-on-light) !important;
+            color: #000000 !important;
         }
         
         .stChatMessage {
-            border: 1px solid var(--border-light) !important;
-            border-radius: 10px !important;
-            padding: 0.5rem !important;
-            margin: 0.3rem 0 !important;
-            background-color: #f8f9fa !important;
+            border: none !important;
+            border-radius: 12px !important;
+            padding: 0.8rem !important;
+            margin: 0.5rem 0 !important;
+            background-color: #ffffff !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         
         .stChatMessage p, .stChatMessage div, .stChatMessage span {
-            color: var(--text-on-light) !important;
+            color: #000000 !important;
         }
         
         /* ========== ЭЛЕМЕНТЫ УПРАВЛЕНИЯ ========== */
         .stButton button {
-            border-radius: 10px !important; 
+            border-radius: 12px !important; 
             font-weight: 600 !important;
             transition: all 0.2s ease;
-            border: 2px solid var(--border-light) !important;
+            border: none !important;
             background-color: #ffffff !important;
             color: #000000 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
         }
         
         .stButton button:hover { 
             transform: scale(1.03); 
-            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-            border-color: var(--accent-color) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
+            background-color: #f8f9fa !important;
         }
         
         .stButton button:active {
             transform: scale(0.98);
         }
         
-        /* ========== КНОПКИ В БОКОВОЙ ПАНЕЛИ - БЕЗ БОРДЮРОВ, ЧЁРНЫЙ ТЕКСТ ========== */
+        /* ========== БОКОВАЯ ПАНЕЛЬ ========== */
+        [data-testid="stSidebar"] {
+            background-color: #ffffff !important;
+            border: none !important;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.05) !important;
+        }
+        
         [data-testid="stSidebar"] .stButton button {
             border: none !important;
             background-color: #ffffff !important;
             color: #000000 !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
         }
         
         [data-testid="stSidebar"] .stButton button:hover {
             background-color: #f0f2f6 !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
         }
         
-        /* ========== БОКОВАЯ ПАНЕЛЬ - БЕЗ БОРДЮРОВ ========== */
-        [data-testid="stSidebar"] {
-            background-color: #ffffff !important;
-            border: none !important;
-            border-right: none !important;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.05) !important;
-        }
-        
-        /* Скрываем все бордюры внутри сайдбара */
-        [data-testid="stSidebar"] hr,
-        [data-testid="stSidebar"] .css-1aumxhk,
-        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] hr {
-            display: none !important;
-        }
-        
-        /* Разделитель в сайдбаре - тонкая линия */
-        [data-testid="stSidebar"] .css-1aumxhk {
-            border-top: 1px solid #e8e8e8 !important;
-            display: block !important;
-        }
-        
-        /* Текст в сайдбаре - чёрный */
         [data-testid="stSidebar"] p,
         [data-testid="stSidebar"] span,
         [data-testid="stSidebar"] label,
@@ -512,11 +496,11 @@ def get_app_styles() -> str:
             color: #000000 !important;
         }
         
-        /* Expander в сайдбаре - без бордюра, светлый фон */
         [data-testid="stSidebar"] div[data-testid="stExpander"] details {
-            background-color: #f8f9fa !important;
+            background-color: #ffffff !important;
             border: none !important;
-            border-radius: 10px !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         
         [data-testid="stSidebar"] div[data-testid="stExpander"] summary {
@@ -528,7 +512,7 @@ def get_app_styles() -> str:
             color: #000000 !important;
         }
         
-        /* ========== ЗАГОЛОВОК (ГРАДИЕНТНЫЙ ФОН) ========== */
+        /* ========== ЗАГОЛОВОК ========== */
         .main-header {
             background: var(--primary-gradient);
             padding: 2rem;
@@ -536,7 +520,7 @@ def get_app_styles() -> str:
             margin-bottom: 2rem;
             text-align: center;
             animation: fadeIn 1s ease-in;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 40px rgba(105, 116, 220, 0.3);
             border: none !important;
         }
         
@@ -569,10 +553,10 @@ def get_app_styles() -> str:
             border: none !important;
         }
         
-        /* ========== КАРТОЧКИ АГЕНТОВ ========== */
+        /* ========== КАРТОЧКИ АГЕНТОВ — БЕЛЫЙ ФОН ========== */
         .agent-card {
-            background: var(--block-bg) !important;
-            background-color: #6974dc !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0;
@@ -581,35 +565,34 @@ def get_app_styles() -> str:
             cursor: pointer;
             position: relative;
             overflow: hidden;
-            color: var(--text-on-dark) !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: space-between !important;
+            color: #000000 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
         }
         
         .agent-card *, .agent-card p, .agent-card span, .agent-card div {
-            color: var(--text-on-dark) !important;
+            color: #000000 !important;
         }
         
         .agent-card::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+            background: linear-gradient(135deg, rgba(105, 116, 220, 0.05), transparent);
             opacity: 0;
             transition: opacity 0.3s;
         }
         
         .agent-card:hover { 
             transform: translateX(5px); 
-            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 25px rgba(105, 116, 220, 0.2);
         }
         
         .agent-card:hover::before { opacity: 1; }
         
         .agent-card-selected {
-            background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%) !important;
-            box-shadow: 0 0 20px rgba(0,255,136,0.2);
+            background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%) !important;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
+            border-left: 4px solid var(--success-color) !important;
         }
         
         .agent-stats {
@@ -618,80 +601,104 @@ def get_app_styles() -> str:
             margin-top: 0.5rem;
             font-size: 0.8rem;
             opacity: 0.9;
-            color: #d0d0d0 !important;
+            color: #4a4a6a !important;
         }
         
-        /* Центрирование кнопки удаления в карточке агента */
-        [data-testid="column"] .stButton button[key^="del_"] {
+        /* ========== ЦЕНТРИРОВАНИЕ КОРЗИНЫ В КАРТОЧКЕ АГЕНТА ========== */
+        [data-testid="stSidebar"] .stColumn:has([key^="del_"]) {
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            height: 100% !important;
-            min-height: 40px !important;
-            width: 40px !important;
-            margin: auto !important;
+            flex: 0 0 auto !important;
+            max-width: 50px !important;
         }
         
-        /* ========== СТАТИСТИКА - ФОН #6974dc, БЕЛЫЙ ТЕКСТ ========== */
+        [data-testid="stSidebar"] [key^="del_"] {
+            width: 36px !important;
+            height: 36px !important;
+            min-width: 36px !important;
+            border-radius: 50% !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 0 !important;
+            margin: auto !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1) !important;
+        }
+        
+        [data-testid="stSidebar"] [key^="del_"] svg {
+            width: 16px !important;
+            height: 16px !important;
+        }
+        
+        [data-testid="stSidebar"] [key^="del_"]:hover {
+            background-color: #fff0f0 !important;
+            box-shadow: 0 4px 12px rgba(255, 68, 68, 0.2) !important;
+        }
+        
+        /* ========== СТАТИСТИКА — БЕЛЫЙ ФОН ========== */
         .stat-card {
-            background: var(--block-bg) !important;
-            background-color: #6974dc !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
             padding: 1.2rem; 
             border-radius: 15px; 
             text-align: center; 
-            color: white !important;
+            color: #000000 !important;
             transition: transform 0.3s, box-shadow 0.3s;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
             border: none !important;
         }
         
         .stat-card *, .stat-card p, .stat-card span, .stat-card div {
-            color: white !important;
+            color: #000000 !important;
         }
         
         .stat-card:hover { 
             transform: translateY(-5px); 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 30px rgba(105, 116, 220, 0.15);
         }
         
         .stat-card h3 { 
             margin: 0; 
             font-size: 2rem; 
             font-weight: bold;
+            color: #6974dc !important;
         }
         
         .stat-card p { 
             margin: 0.3rem 0 0 0; 
             opacity: 0.9;
             font-size: 0.9rem;
+            color: #4a4a6a !important;
         }
         
-        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ - ФОН #6974dc ========== */
+        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ — БЕЛЫЙ ФОН ========== */
         .memory-box, .condition-box, .info-box {
-            background: var(--block-bg) !important;
-            background-color: #6974dc !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
             padding: 1rem; 
-            border-radius: 10px;
+            border-radius: 12px;
             margin: 0.5rem 0;
             border: none !important;
-            color: var(--text-on-dark) !important;
+            color: #000000 !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         
         .memory-box *, .condition-box *, .info-box *,
         .memory-box p, .condition-box p, .info-box p,
         .memory-box span, .condition-box span, .info-box span {
-            color: var(--text-on-dark) !important;
+            color: #000000 !important;
         }
         
         .memory-box strong, .memory-box b,
         .condition-box strong, .condition-box b,
         .info-box strong, .info-box b {
-            color: #ffffff !important;
+            color: #000000 !important;
             font-weight: 600 !important;
         }
         
         .memory-box small, .condition-box small, .info-box small {
-            color: #d0d0d0 !important;
+            color: #4a4a6a !important;
         }
         
         .memory-box { border-left: 4px solid var(--warning-color) !important; }
@@ -702,25 +709,26 @@ def get_app_styles() -> str:
         }
         .info-box { border-left: 4px solid var(--accent-color) !important; }
         
-        /* ========== УЗЛЫ WORKFLOW - ФОН #6974dc ========== */
+        /* ========== УЗЛЫ WORKFLOW — БЕЛЫЙ ФОН ========== */
         .workflow-node {
-            background: var(--block-bg) !important;
-            background-color: #6974dc !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0; 
-            color: var(--text-on-dark) !important;
+            color: #000000 !important;
             border: none !important;
             transition: all 0.3s ease;
             position: relative;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
         }
         
         .workflow-node *, .workflow-node p, .workflow-node span, .workflow-node div {
-            color: var(--text-on-dark) !important;
+            color: #000000 !important;
         }
         
         .workflow-node small {
-            color: #d0d0d0 !important;
+            color: #4a4a6a !important;
         }
         
         .workflow-node::after {
@@ -734,15 +742,17 @@ def get_app_styles() -> str:
         
         .workflow-node:hover { 
             transform: translateX(5px); 
-            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+            box-shadow: 0 8px 25px rgba(105, 116, 220, 0.15);
         }
         
         .workflow-node-success {
-            background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%) !important;
+            background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%) !important;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
         }
         
         .workflow-node-error {
-            background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%) !important;
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%) !important;
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.15);
         }
         
         .workflow-connector {
@@ -752,17 +762,18 @@ def get_app_styles() -> str:
             margin: 0.3rem 0;
         }
         
-        /* ========== EXPANDER - ФОН #6974dc ========== */
+        /* ========== EXPANDER — БЕЛЫЙ ФОН ========== */
         div[data-testid="stExpander"] details {
-            background: var(--block-bg) !important;
-            background-color: #6974dc !important;
-            border-radius: 15px; 
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            border-radius: 12px; 
             border: none !important;
             margin: 0.5rem 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         
         div[data-testid="stExpander"] summary { 
-            color: var(--text-on-dark) !important; 
+            color: #000000 !important; 
             font-weight: 600;
             padding: 0.8rem 1rem;
         }
@@ -771,15 +782,16 @@ def get_app_styles() -> str:
         div[data-testid="stExpander"] details p,
         div[data-testid="stExpander"] details span,
         div[data-testid="stExpander"] details div {
-            color: var(--text-on-dark) !important;
+            color: #000000 !important;
         }
         
         /* ========== ТАБЛИЦЫ ========== */
         .dataframe {
             border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
             border: none !important;
+            background-color: #ffffff !important;
         }
         
         /* ========== МОБИЛЬНАЯ АДАПТАЦИЯ ========== */
@@ -840,13 +852,14 @@ def get_app_styles() -> str:
         
         /* ========== ПРОГРЕСС БАР ========== */
         .progress-container {
-            background: var(--block-bg) !important;
-            background-color: #6974dc !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
             border-radius: 10px;
             padding: 0.5rem;
             margin: 0.5rem 0;
-            color: var(--text-on-dark) !important;
+            color: #000000 !important;
             border: none !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         
         .progress-bar {
@@ -866,15 +879,15 @@ def get_app_styles() -> str:
             margin: 0.2rem;
             border: none !important;
         }
-        .tag-success { background: rgba(0,255,136,0.2); color: var(--success-color) !important; }
-        .tag-error { background: rgba(255,68,68,0.2); color: var(--error-color) !important; }
-        .tag-warning { background: rgba(255,165,0,0.2); color: var(--warning-color) !important; }
-        .tag-info { background: rgba(78,205,196,0.2); color: var(--accent-color) !important; }
+        .tag-success { background: rgba(0,255,136,0.15); color: #00cc6a !important; }
+        .tag-error { background: rgba(255,68,68,0.15); color: #ff4444 !important; }
+        .tag-warning { background: rgba(255,165,0,0.15); color: #ffa500 !important; }
+        .tag-info { background: rgba(78,205,196,0.15); color: #3bb4a8 !important; }
         
         /* ========== CODE И СПИСКИ ========== */
         code, pre, .stCode {
             color: var(--accent-color) !important;
-            background-color: rgba(78, 205, 196, 0.15) !important;
+            background-color: rgba(78, 205, 196, 0.1) !important;
             padding: 0.2rem 0.4rem;
             border-radius: 4px;
             font-weight: 500;
@@ -882,18 +895,20 @@ def get_app_styles() -> str:
         }
         
         ul, ol, li {
-            color: var(--text-on-light) !important;
+            color: #000000 !important;
         }
         
         /* ========== ALERTS ========== */
         .stAlert, .stInfo, .stSuccess, .stWarning, .stError {
-            color: var(--text-on-light) !important;
+            color: #000000 !important;
             border: none !important;
-            border-radius: 10px !important;
+            border-radius: 12px !important;
+            background-color: #ffffff !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         
         .stAlert *, .stInfo *, .stSuccess *, .stWarning *, .stError * {
-            color: var(--text-on-light) !important;
+            color: #000000 !important;
         }
         
         /* ========== ОБЩИЕ БЛОКИ ========== */
@@ -907,6 +922,36 @@ def get_app_styles() -> str:
         /* Скрытие стандартных бордюров Streamlit */
         .stApp [data-testid="stVerticalBlockBorderWrapper"] {
             border: none !important;
+        }
+        
+        /* ========== СТИЛИ ДЛЯ КНОПКИ ЗАГРУЗКИ ========== */
+        .stFileUploader {
+            background-color: #ffffff !important;
+            border: none !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+        }
+        
+        /* ========== TABS ========== */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 4px;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            background-color: #ffffff !important;
+            border: none !important;
+            border-radius: 10px !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06) !important;
+            color: #000000 !important;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background: var(--primary-gradient) !important;
+            color: white !important;
+        }
+        
+        .stTabs [aria-selected="true"] p {
+            color: white !important;
         }
     </style>
     """
@@ -1883,7 +1928,6 @@ class AgentManager:
         """Сохраняет агентов в session_state и авто-файл"""
         st.session_state.agents = {agent_id: agent.to_dict() for agent_id, agent in self.agents.items()}
         st.session_state.current_agent_id = self.current_agent_id
-        # Автосохранение в файл
         save_agents_auto(st.session_state.agents)
     
     def add_agent(self, name: str, role: str, system_prompt: str) -> AIAgent:
@@ -2511,7 +2555,7 @@ def initialize_session_state():
         'table_manager': None,
         'current_df': None,
         'excel_loaded': False,
-        'data_loaded': False  # Флаг: данные уже загружены
+        'data_loaded': False
     }
     
     for key, value in defaults.items():
@@ -2520,22 +2564,18 @@ def initialize_session_state():
     
     # Автозагрузка данных при первом запуске
     if not st.session_state.get('data_loaded'):
-        # Загрузка workflow
         saved_workflow = load_workflow_auto()
         if saved_workflow:
             st.session_state.workflow = saved_workflow
         
-        # Загрузка сообщений
         saved_messages = load_messages_auto()
         if saved_messages:
             st.session_state.agent_messages = saved_messages
         
-        # Загрузка истории
         saved_history = load_history_auto()
         if saved_history:
             st.session_state.history = saved_history
         
-        # Загрузка агентов
         saved_agents = load_agents_auto()
         if saved_agents and 'agents' not in st.session_state:
             st.session_state.agents = saved_agents
@@ -2560,21 +2600,18 @@ def main():
     initialize_session_state()
     
     # === АВТОСОХРАНЕНИЕ ПРИ ИЗМЕНЕНИЯХ ===
-    # Сохраняем workflow при изменении
     current_workflow = st.session_state.get('workflow', [])
     if hasattr(st, '_last_workflow'):
         if current_workflow != st._last_workflow:
             save_workflow_auto(current_workflow)
     st._last_workflow = current_workflow.copy() if current_workflow else []
     
-    # Сохраняем сообщения при изменении
     current_messages = st.session_state.get('agent_messages', [])
     if hasattr(st, '_last_messages'):
         if current_messages != st._last_messages:
             save_messages_auto(current_messages)
     st._last_messages = current_messages.copy() if current_messages else []
     
-    # Сохраняем историю при изменении
     current_history = st.session_state.get('history', [])
     if hasattr(st, '_last_history'):
         if current_history != st._last_history:
@@ -2676,11 +2713,9 @@ def main():
                 st.rerun()
             
             if st.button("⚠️ Сбросить ВСЁ", use_container_width=True, type="secondary"):
-                # Удалить файлы данных
                 for f in [WORKFLOW_FILE, AGENTS_FILE, MESSAGES_FILE, HISTORY_FILE]:
                     if f.exists():
                         f.unlink()
-                # Сбросить session_state
                 for key in ['workflow', 'agent_messages', 'history', 'agents', 'data_loaded']:
                     if key in st.session_state:
                         del st.session_state[key]
@@ -2711,35 +2746,27 @@ def main():
         "🤖 Workflow", "🔀 Условия", "🗂 Таблицы+ИИ", "📖 Справка"
     ])
     
-    # Вкладка 1: Диалог
     with tabs[0]:
         render_chat_tab(agent_manager, api_key)
     
-    # Вкладка 2: Обучение
     with tabs[1]:
         render_training_tab(agent_manager)
     
-    # Вкладка 3: Память
     with tabs[2]:
         render_memory_tab(agent_manager)
     
-    # Вкладка 4: Аналитика
     with tabs[3]:
         render_analytics_tab(agent_manager)
     
-    # Вкладка 5: Workflow
     with tabs[4]:
         render_workflow_tab(agent_manager, api_key)
     
-    # Вкладка 6: Условия
     with tabs[5]:
         render_conditions_tab()
     
-    # Вкладка 7: Таблицы + ИИ
     with tabs[6]:
         render_tables_tab(api_key)
     
-    # Вкладка 8: Справка
     with tabs[7]:
         render_help_tab()
 
@@ -2755,7 +2782,6 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
     st.subheader(f"💬 {current_agent.name}")
     st.caption(f"Роль: {current_agent.role}")
     
-    # История сообщений
     chat_container = st.container()
     with chat_container:
         for msg in st.session_state.agent_messages:
@@ -2765,7 +2791,6 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
                 st.markdown(f"**🤖 {current_agent.name}:** {msg['content']}")
             st.markdown("---")
     
-    # Ввод
     user_input = st.text_area("✏️ Сообщение", height=80, key="chat_input")
     
     col1, col2, col3 = st.columns([1, 1, 2])
@@ -2787,7 +2812,6 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
                 agent_manager.save_agents()
                 st.rerun()
     
-    # Загрузка аудио
     if st.session_state.voice_show_upload:
         st.info("🎤 Загрузите аудио (WAV/MP3)")
         audio_file = st.file_uploader("Файл", type=["wav", "mp3"], key="voice_upload")
@@ -2801,7 +2825,6 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
             else:
                 st.error("❌ Не распознано")
     
-    # Озвучка
     if st.button("🔊 Озвучить", use_container_width=True):
         if st.session_state.agent_messages and st.session_state.agent_messages[-1]['role'] == 'agent':
             audio = text_to_speech_mp3(st.session_state.agent_messages[-1]['content'])
