@@ -610,7 +610,7 @@ def get_app_styles() -> str:
             align-items: center !important;
             justify-content: center !important;
             flex: 0 0 auto !important;
-            max-width: -30px !important;
+            max-width: 50px !important;
         }
         
         [data-testid="stSidebar"] [key^="del_"] {
@@ -1389,7 +1389,10 @@ class TableManager:
         rules: Optional[Dict] = None
     ):
         """Применяет форматирование к листу Excel"""
-        worksheet = writer.sheets[writer.sheet_names[0]]
+        # Исправление: Получение листа напрямую из словаря sheets
+        if not writer.sheets:
+            return
+        worksheet = list(writer.sheets.values())[0]
         
         for column in worksheet.columns:
             max_length = max(
@@ -1572,11 +1575,11 @@ class TableManager:
             if json_match:
                 json_str = json_match.group()
                 
-                # 3. Чистим от комментариев (иногда модели их вставляют)
+                # 3. Чистим от комментариев
                 json_str = re.sub(r'//[^\n]*', '', json_str)
                 json_str = re.sub(r'/\*[\s\S]*?\*/', '', json_str)
                 
-                # 4. Фиксим trailing commas (запятые перед } или ])
+                # 4. Фиксим trailing commas
                 json_str = re.sub(r',(\s*[\]}])', r'\1', json_str)
                 
                 try:
@@ -1861,7 +1864,7 @@ class AIAgent:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict) -> 'AIAgent':
+    def from_dict(cls,  Dict) -> 'AIAgent':
         """Десериализует агента из словаря"""
         agent = cls(
             name=data['name'],
