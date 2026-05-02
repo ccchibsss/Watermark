@@ -610,7 +610,7 @@ def get_app_styles() -> str:
             align-items: center !important;
             justify-content: center !important;
             flex: 0 0 auto !important;
-            max-width: 50px !important;
+            max-width: -30px !important;
         }
         
         [data-testid="stSidebar"] [key^="del_"] {
