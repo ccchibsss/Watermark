@@ -355,18 +355,19 @@ def get_app_styles() -> str:
     <style>
         /* ========== БАЗОВЫЕ СТИЛИ ========== */
         :root {
-            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            --dark-gradient: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            --primary-gradient: linear-gradient(135deg, #6974dc 0%, #764ba2 100%);
+            --dark-gradient: linear-gradient(135deg, #6974dc 0%, #5a65c0 100%);
             --success-color: #00ff88;
             --error-color: #ff4444;
             --warning-color: #ffa500;
             --accent-color: #4ECDC4;
-            --card-bg: #1e1e2e;
+            --card-bg: #6974dc;
             --text-on-dark: #ffffff;
             --text-on-light: #1a1a2e;
             --text-secondary: #4a4a6a;
             --border-light: #cccccc;
             --border-dark: #444466;
+            --block-bg: #6974dc;
         }
         
         /* ========== БАЗОВЫЙ ТЕКСТ (для светлого фона Streamlit по умолчанию) ========== */
@@ -398,7 +399,7 @@ def get_app_styles() -> str:
         input[type="number"],
         input[type="password"],
         textarea {
-            color: #1a1a2e !important;
+            color: #000000 !important;
             background-color: #ffffff !important;
             border: 2px solid var(--border-light) !important;
             border-radius: 8px !important;
@@ -503,19 +504,22 @@ def get_app_styles() -> str:
             border: 1px solid rgba(255,255,255,0.4);
         }
         
-        /* ========== КАРТОЧКИ АГЕНТОВ (ТЁМНЫЙ ФОН - БЕЛЫЙ ТЕКСТ) ========== */
+        /* ========== КАРТОЧКИ АГЕНТОВ - ФОН #6974dc, ЦЕНТРИРОВАННАЯ КОРЗИНА ========== */
         .agent-card {
-            background: var(--dark-gradient);
+            background: var(--block-bg) !important;
+            background-color: #6974dc !important;
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0;
-            border: 2px solid var(--accent-color);
-            border-left: 4px solid var(--accent-color); 
+            border: 2px solid rgba(255,255,255,0.3);
             transition: all 0.3s ease;
             cursor: pointer;
             position: relative;
             overflow: hidden;
             color: var(--text-on-dark) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
         }
         
         .agent-card *, .agent-card p, .agent-card span, .agent-card div {
@@ -540,8 +544,7 @@ def get_app_styles() -> str:
         .agent-card:hover::before { opacity: 1; }
         
         .agent-card-selected {
-            border-left-color: var(--success-color);
-            background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
+            background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%) !important;
             box-shadow: 0 0 20px rgba(0,255,136,0.2);
             border: 2px solid var(--success-color);
         }
@@ -555,9 +558,21 @@ def get_app_styles() -> str:
             color: #d0d0d0 !important;
         }
         
-        /* ========== СТАТИСТИКА (СВЕТЛЫЙ ФОН - ТЁМНЫЙ ТЕКСТ) ========== */
+        /* Центрирование кнопки удаления в карточке агента */
+        [data-testid="column"] .stButton button[key^="del_"] {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            height: 100% !important;
+            min-height: 40px !important;
+            width: 40px !important;
+            margin: auto !important;
+        }
+        
+        /* ========== СТАТИСТИКА - ФОН #6974dc ========== */
         .stat-card {
-            background: var(--primary-gradient);
+            background: var(--block-bg) !important;
+            background-color: #6974dc !important;
             padding: 1.2rem; 
             border-radius: 15px; 
             text-align: center; 
@@ -588,14 +603,14 @@ def get_app_styles() -> str:
             font-size: 0.9rem;
         }
         
-        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ (ТЁМНЫЙ ФОН - БЕЛЫЙ ТЕКСТ) ========== */
+        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ - ФОН #6974dc ========== */
         .memory-box, .condition-box, .info-box {
-            background: var(--card-bg); 
+            background: var(--block-bg) !important;
+            background-color: #6974dc !important;
             padding: 1rem; 
             border-radius: 10px;
             margin: 0.5rem 0;
-            border: 2px solid var(--accent-color);
-            border-left: 4px solid var(--accent-color);
+            border: 2px solid rgba(255,255,255,0.3);
             color: var(--text-on-dark) !important;
         }
         
@@ -616,23 +631,23 @@ def get_app_styles() -> str:
             color: #d0d0d0 !important;
         }
         
-        .memory-box { border-left-color: var(--warning-color); }
+        .memory-box { border-left: 4px solid var(--warning-color) !important; }
         .condition-box { 
-            border-left-color: var(--warning-color); 
+            border-left: 4px solid var(--warning-color) !important; 
             font-family: 'Courier New', monospace;
             font-size: 0.9rem;
         }
-        .info-box { border-left-color: var(--accent-color); }
+        .info-box { border-left: 4px solid var(--accent-color) !important; }
         
-        /* ========== УЗЛЫ WORKFLOW (ТЁМНЫЙ ФОН - БЕЛЫЙ ТЕКСТ) ========== */
+        /* ========== УЗЛЫ WORKFLOW - ФОН #6974dc ========== */
         .workflow-node {
-            background: var(--dark-gradient);
+            background: var(--block-bg) !important;
+            background-color: #6974dc !important;
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0; 
             color: var(--text-on-dark) !important;
-            border: 2px solid var(--accent-color);
-            border-left: 4px solid var(--accent-color); 
+            border: 2px solid rgba(255,255,255,0.3);
             transition: all 0.3s ease;
             position: relative;
         }
@@ -661,14 +676,12 @@ def get_app_styles() -> str:
         }
         
         .workflow-node-success {
-            border-left-color: var(--success-color);
-            background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
+            background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%) !important;
             border-color: var(--success-color);
         }
         
         .workflow-node-error {
-            border-left-color: var(--error-color);
-            background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%);
+            background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%) !important;
             border-color: var(--error-color);
         }
         
@@ -679,11 +692,12 @@ def get_app_styles() -> str:
             margin: 0.3rem 0;
         }
         
-        /* ========== EXPANDER (ТЁМНЫЙ ФОН - БЕЛЫЙ ТЕКСТ) ========== */
+        /* ========== EXPANDER - ФОН #6974dc ========== */
         div[data-testid="stExpander"] details {
-            background: var(--dark-gradient);
+            background: var(--block-bg) !important;
+            background-color: #6974dc !important;
             border-radius: 15px; 
-            border: 2px solid var(--accent-color);
+            border: 2px solid rgba(255,255,255,0.3);
             margin: 0.5rem 0;
         }
         
@@ -772,12 +786,13 @@ def get_app_styles() -> str:
         
         /* ========== ПРОГРЕСС БАР ========== */
         .progress-container {
-            background: var(--card-bg);
+            background: var(--block-bg) !important;
+            background-color: #6974dc !important;
             border-radius: 10px;
             padding: 0.5rem;
             margin: 0.5rem 0;
             color: var(--text-on-dark) !important;
-            border: 2px solid var(--accent-color);
+            border: 2px solid rgba(255,255,255,0.3);
         }
         
         .progress-bar {
@@ -841,7 +856,6 @@ def get_app_styles() -> str:
         }
     </style>
     """
-
 
 # ============================================================================
 # КЛАСС ДЛЯ ПРЕОБРАЗОВАНИЯ РУССКИХ УСЛОВИЙ
