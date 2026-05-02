@@ -82,7 +82,7 @@ def load_workflow_auto() -> List[Dict]:
     return []
 
 
-def save_agents_auto(agents_ Dict):
+def save_agents_auto(agents_data: Dict):
     """Автосохранение агентов"""
     try:
         with open(AGENTS_FILE, 'w', encoding='utf-8') as f:
@@ -346,38 +346,41 @@ class WorkflowStatus(Enum):
 
 
 # ============================================================================
-# CSS СТИЛИ — БЕЛЫЙ ФОН, ЧЁРНЫЙ ТЕКСТ, ЧАТ ИИ
+# CSS СТИЛИ — БЕЛЫЙ ФОН, ЧЁРНЫЙ ТЕКСТ, ЦЕНТРИРОВАННАЯ КОРЗИНА
 # ============================================================================
 def get_app_styles() -> str:
-    """Возвращает CSS стили с белым фоном и черным текстом"""
+    """Возвращает CSS стили с белым фоном как в сайдбаре и центрированной корзиной"""
     return """
     <style>
         /* ========== БАЗОВЫЕ СТИЛИ ========== */
         :root {
             --primary-gradient: linear-gradient(135deg, #6974dc 0%, #764ba2 100%);
+            --dark-gradient: linear-gradient(135deg, #ffffff 0%, #f0f2f6 100%);
             --success-color: #00ff88;
             --error-color: #ff4444;
             --warning-color: #ffa500;
             --accent-color: #4ECDC4;
             --card-bg: #ffffff;
-            --text-color: #000000;
+            --text-on-dark: #000000;
+            --text-on-light: #000000;
             --text-secondary: #4a4a6a;
             --border-light: #e0e0e0;
+            --border-dark: #e0e0e0;
             --block-bg: #ffffff;
         }
         
         /* ========== БАЗОВЫЙ ТЕКСТ ========== */
         body, .stApp, .main, .block-container {
-            color: var(--text-color) !important;
+            color: var(--text-on-light) !important;
             background-color: #f0f2f6 !important;
         }
         
         p, span, div, li, a, label, h1, h2, h3, h4, h5, h6 {
-            color: var(--text-color) !important;
+            color: var(--text-on-light) !important;
         }
         
         strong, b {
-            color: var(--text-color) !important;
+            color: var(--text-on-light) !important;
             font-weight: 600 !important;
         }
         
@@ -550,7 +553,7 @@ def get_app_styles() -> str:
             border: none !important;
         }
         
-        /* ========== КАРТОЧКИ АГЕНТОВ ========== */
+        /* ========== КАРТОЧКИ АГЕНТОВ — БЕЛЫЙ ФОН ========== */
         .agent-card {
             background: #ffffff !important;
             background-color: #ffffff !important;
@@ -601,7 +604,7 @@ def get_app_styles() -> str:
             color: #4a4a6a !important;
         }
         
-        /* ========== ЦЕНТРИРОВАНИЕ КОРЗИНЫ ========== */
+        /* ========== ЦЕНТРИРОВАНИЕ КОРЗИНЫ В КАРТОЧКЕ АГЕНТА ========== */
         [data-testid="stSidebar"] .stColumn:has([key^="del_"]) {
             display: flex !important;
             align-items: center !important;
@@ -633,7 +636,7 @@ def get_app_styles() -> str:
             box-shadow: 0 4px 12px rgba(255, 68, 68, 0.2) !important;
         }
         
-        /* ========== СТАТИСТИКА ========== */
+        /* ========== СТАТИСТИКА — БЕЛЫЙ ФОН ========== */
         .stat-card {
             background: #ffffff !important;
             background-color: #ffffff !important;
@@ -669,7 +672,7 @@ def get_app_styles() -> str:
             color: #4a4a6a !important;
         }
         
-        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ ========== */
+        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ — БЕЛЫЙ ФОН ========== */
         .memory-box, .condition-box, .info-box {
             background: #ffffff !important;
             background-color: #ffffff !important;
@@ -706,7 +709,7 @@ def get_app_styles() -> str:
         }
         .info-box { border-left: 4px solid var(--accent-color) !important; }
         
-        /* ========== УЗЛЫ WORKFLOW ========== */
+        /* ========== УЗЛЫ WORKFLOW — БЕЛЫЙ ФОН ========== */
         .workflow-node {
             background: #ffffff !important;
             background-color: #ffffff !important;
@@ -759,7 +762,7 @@ def get_app_styles() -> str:
             margin: 0.3rem 0;
         }
         
-        /* ========== EXPANDER ========== */
+        /* ========== EXPANDER — БЕЛЫЙ ФОН ========== */
         div[data-testid="stExpander"] details {
             background: #ffffff !important;
             background-color: #ffffff !important;
@@ -1386,10 +1389,7 @@ class TableManager:
         rules: Optional[Dict] = None
     ):
         """Применяет форматирование к листу Excel"""
-        # ИСПРАВЛЕНИЕ: Безопасное получение листа
-        if not writer.sheets:
-            return
-        worksheet = list(writer.sheets.values())[0]
+        worksheet = writer.sheets[writer.sheet_names[0]]
         
         for column in worksheet.columns:
             max_length = max(
@@ -1572,11 +1572,11 @@ class TableManager:
             if json_match:
                 json_str = json_match.group()
                 
-                # 3. Чистим от комментариев
+                # 3. Чистим от комментариев (иногда модели их вставляют)
                 json_str = re.sub(r'//[^\n]*', '', json_str)
                 json_str = re.sub(r'/\*[\s\S]*?\*/', '', json_str)
                 
-                # 4. Фиксим trailing commas
+                # 4. Фиксим trailing commas (запятые перед } или ])
                 json_str = re.sub(r',(\s*[\]}])', r'\1', json_str)
                 
                 try:
@@ -1861,13 +1861,13 @@ class AIAgent:
         }
     
     @classmethod
-    def from_dict(cls,  Dict) -> 'AIAgent':
+    def from_dict(cls, data: Dict) -> 'AIAgent':
         """Десериализует агента из словаря"""
         agent = cls(
-            name=data.get('name', 'Unknown'),
-            role=data.get('role', 'Assistant'),
-            system_prompt=data.get('system_prompt', ''),
-            agent_id=data.get('id')
+            name=data['name'],
+            role=data['role'],
+            system_prompt=data['system_prompt'],
+            agent_id=data['id']
         )
         agent.created_at = data.get('created_at', datetime.now().isoformat())
         agent.training_examples = data.get('training_examples', [])
@@ -1905,10 +1905,7 @@ class AgentManager:
         
         for agent_id, agent_dict in st.session_state.agents.items():
             if agent_id not in self.agents:
-                try:
-                    self.agents[agent_id] = AIAgent.from_dict(agent_dict)
-                except Exception as e:
-                    logger.error(f"Ошибка загрузки агента {agent_id}: {e}")
+                self.agents[agent_id] = AIAgent.from_dict(agent_dict)
         
         self.current_agent_id = st.session_state.get('current_agent_id')
     
@@ -2799,73 +2796,67 @@ def main():
 
 
 def render_chat_tab(agent_manager: AgentManager, api_key: str):
-    """Рендерит вкладку диалога с агентом (Чат-интерфейс)"""
+    """Рендерит вкладку диалога с агентом"""
     current_agent = agent_manager.get_current_agent()
     
     if not current_agent:
         st.warning("⚠️ Выберите агента в боковой панели")
         return
     
-    st.subheader(f"💬 Чат с: {current_agent.name}")
+    st.subheader(f"💬 {current_agent.name}")
+    st.caption(f"Роль: {current_agent.role}")
     
-    # 1. Контейнер для сообщений (высота 500px для скролла)
-    chat_container = st.container(height=500, border=False)
-    
+    chat_container = st.container()
     with chat_container:
         for msg in st.session_state.agent_messages:
-            role = msg['role']
-            content = msg['content']
-            
-            if role == 'user':
-                st.chat_message("user").write(content)
+            if msg['role'] == 'user':
+                st.markdown(f"**👤 Вы:** {msg['content']}")
             else:
-                st.chat_message("assistant").write(content)
-
-    # 2. Поле ввода (Всегда снизу)
-    # clear_on_submit=True автоматически очищает поле после отправки
-    with st.form("chat_form", clear_on_submit=True):
-        user_input = st.text_area(
-            "Ваше сообщение...", 
-            height=80, 
-            key="chat_input_box",
-            label_visibility="collapsed",
-            placeholder="Напишите сообщение..."
-        )
-        
-        # Кнопки
-        col1, col2 = st.columns([4, 1])
-        with col1:
-            # Кнопка отправки внутри формы
-            submit = st.form_submit_button("🚀 Отправить", type="primary", use_container_width=True)
-        with col2:
-            # Можно добавить кнопку голоса
-            pass
-
-    if submit and user_input:
-        # 1. Отображаем сообщение пользователя сразу
-        with chat_container:
-            st.chat_message("user").write(user_input)
-        
-        # 2. Сохраняем в историю
-        st.session_state.agent_messages.append({'role': 'user', 'content': user_input})
-        
-        # 3. Генерируем ответ
-        with st.spinner(f"{current_agent.name} думает..."):
-            response = current_agent.generate_response(user_input, api_key)
-        
-        # 4. Отображаем ответ бота
-        with chat_container:
-            st.chat_message("assistant").write(response)
-        
-        # 5. Сохраняем ответ в историю
-        st.session_state.agent_messages.append({'role': 'agent', 'content': response})
-        
-        # 6. Обновляем статистику агента
-        current_agent.add_conversation(user_input, response)
-        agent_manager.save_agents()
-        save_messages_auto(st.session_state.agent_messages)
-        
-        # 7. Перезагружаем (для надежности, хотя стримлит и так обновит)
+                st.markdown(f"**🤖 {current_agent.name}:** {msg['content']}")
+            st.markdown("---")
+    
+    user_input = st.text_area("✏️ Сообщение", height=80, key="chat_input")
+    
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        use_training = st.checkbox("Обучение", value=True, key="chat_use_training")
+    with col2:
+        if VOICE_SUPPORT and st.button("🎤 Голос", use_container_width=True):
+            st.session_state.voice_show_upload = True
+    with col3:
+        if st.button("🚀 Отправить", type="primary", use_container_width=True):
+            if user_input:
+                st.session_state.agent_messages.append({'role': 'user', 'content': user_input})
+                
+                with st.spinner("Думает..."):
+                    response = current_agent.generate_response(user_input, api_key, use_training)
+                
+                st.session_state.agent_messages.append({'role': 'agent', 'content': response})
+                current_agent.add_conversation(user_input, response)
+                agent_manager.save_agents()
+                st.rerun()
+    
+    if st.session_state.voice_show_upload:
+        st.info("🎤 Загрузите аудио (WAV/MP3)")
+        audio_file = st.file_uploader("Файл", type=["wav", "mp3"], key="voice_upload")
+        if audio_file:
+            recognized = recognize_speech_from_audio(audio_file.read())
+            if recognized:
+                st.success(f"✅ {recognized}")
+                st.session_state.chat_input = recognized
+                st.session_state.voice_show_upload = False
+                st.rerun()
+            else:
+                st.error("❌ Не распознано")
+    
+    if st.button("🔊 Озвучить", use_container_width=True):
+        if st.session_state.agent_messages and st.session_state.agent_messages[-1]['role'] == 'agent':
+            audio = text_to_speech_mp3(st.session_state.agent_messages[-1]['content'])
+            if audio:
+                st.audio(audio, format="audio/mp3")
+    
+    if st.button("🗑️ Очистить"):
+        st.session_state.agent_messages = []
         st.rerun()
 
 
