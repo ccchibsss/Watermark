@@ -48,6 +48,100 @@ import base64
 import logging
 import os
 import tempfile
+from pathlib import Path
+
+# ============================================================================
+# АВТОСОХРАНЕНИЕ ДАННЫХ (без ручного экспорта/импорта)
+# ============================================================================
+# Путь для хранения данных
+DATA_DIR = Path(__file__).parent / ".workflow_data"
+DATA_DIR.mkdir(exist_ok=True)
+
+WORKFLOW_FILE = DATA_DIR / "workflow.json"
+AGENTS_FILE = DATA_DIR / "agents.json"
+MESSAGES_FILE = DATA_DIR / "messages.json"
+HISTORY_FILE = DATA_DIR / "history.json"
+
+
+def save_workflow_auto(workflow: List[Dict]):
+    """Автосохранение workflow в локальный файл"""
+    try:
+        with open(WORKFLOW_FILE, 'w', encoding='utf-8') as f:
+            json.dump(workflow, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Не удалось сохранить workflow: {e}")
+
+
+def load_workflow_auto() -> List[Dict]:
+    """Автозагрузка workflow из локального файла"""
+    if WORKFLOW_FILE.exists():
+        try:
+            with open(WORKFLOW_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить workflow: {e}")
+    return []
+
+
+def save_agents_auto(agents_data: Dict):
+    """Автосохранение агентов"""
+    try:
+        with open(AGENTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(agents_data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Не удалось сохранить агентов: {e}")
+
+
+def load_agents_auto() -> Optional[Dict]:
+    """Автозагрузка агентов"""
+    if AGENTS_FILE.exists():
+        try:
+            with open(AGENTS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить агентов: {e}")
+    return None
+
+
+def save_messages_auto(messages: List[Dict]):
+    """Автосохранение сообщений чата"""
+    try:
+        with open(MESSAGES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(messages, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Не удалось сохранить сообщения: {e}")
+
+
+def load_messages_auto() -> List[Dict]:
+    """Автозагрузка сообщений чата"""
+    if MESSAGES_FILE.exists():
+        try:
+            with open(MESSAGES_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить сообщения: {e}")
+    return []
+
+
+def save_history_auto(history: List[Dict]):
+    """Автосохранение истории"""
+    try:
+        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(history, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Не удалось сохранить историю: {e}")
+
+
+def load_history_auto() -> List[Dict]:
+    """Автозагрузка истории"""
+    if HISTORY_FILE.exists():
+        try:
+            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить историю: {e}")
+    return []
+
 
 # Библиотеки для работы с таблицами
 try:
@@ -1651,9 +1745,11 @@ class AgentManager:
         return agents
     
     def save_agents(self):
-        """Сохраняет агентов в session_state"""
+        """Сохраняет агентов в session_state и авто-файл"""
         st.session_state.agents = {agent_id: agent.to_dict() for agent_id, agent in self.agents.items()}
         st.session_state.current_agent_id = self.current_agent_id
+        # Автосохранение в файл
+        save_agents_auto(st.session_state.agents)
     
     def add_agent(self, name: str, role: str, system_prompt: str) -> AIAgent:
         """
@@ -2265,7 +2361,7 @@ def text_to_speech_mp3(text: str) -> Optional[bytes]:
 # ИНИЦИАЛИЗАЦИЯ STREAMLIT
 # ============================================================================
 def initialize_session_state():
-    """Инициализирует session_state"""
+    """Инициализирует session_state с автозагрузкой данных"""
     defaults = {
         'agent_manager': None,
         'workflow': [],
@@ -2279,12 +2375,37 @@ def initialize_session_state():
         'voice_show_upload': False,
         'table_manager': None,
         'current_df': None,
-        'excel_loaded': False
+        'excel_loaded': False,
+        'data_loaded': False  # Флаг: данные уже загружены
     }
     
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
+    
+    # Автозагрузка данных при первом запуске
+    if not st.session_state.get('data_loaded'):
+        # Загрузка workflow
+        saved_workflow = load_workflow_auto()
+        if saved_workflow:
+            st.session_state.workflow = saved_workflow
+        
+        # Загрузка сообщений
+        saved_messages = load_messages_auto()
+        if saved_messages:
+            st.session_state.agent_messages = saved_messages
+        
+        # Загрузка истории
+        saved_history = load_history_auto()
+        if saved_history:
+            st.session_state.history = saved_history
+        
+        # Загрузка агентов
+        saved_agents = load_agents_auto()
+        if saved_agents and 'agents' not in st.session_state:
+            st.session_state.agents = saved_agents
+        
+        st.session_state.data_loaded = True
 
 
 def main():
@@ -2302,6 +2423,28 @@ def main():
     
     # Инициализация сессии
     initialize_session_state()
+    
+    # === АВТОСОХРАНЕНИЕ ПРИ ИЗМЕНЕНИЯХ ===
+    # Сохраняем workflow при изменении
+    current_workflow = st.session_state.get('workflow', [])
+    if hasattr(st, '_last_workflow'):
+        if current_workflow != st._last_workflow:
+            save_workflow_auto(current_workflow)
+    st._last_workflow = current_workflow.copy() if current_workflow else []
+    
+    # Сохраняем сообщения при изменении
+    current_messages = st.session_state.get('agent_messages', [])
+    if hasattr(st, '_last_messages'):
+        if current_messages != st._last_messages:
+            save_messages_auto(current_messages)
+    st._last_messages = current_messages.copy() if current_messages else []
+    
+    # Сохраняем историю при изменении
+    current_history = st.session_state.get('history', [])
+    if hasattr(st, '_last_history'):
+        if current_history != st._last_history:
+            save_history_auto(current_history)
+    st._last_history = current_history.copy() if current_history else []
     
     # Заголовок
     st.markdown(f"""
@@ -2382,6 +2525,31 @@ def main():
                 if agent_manager.import_agent(content):
                     st.success("✅ Агент импортирован!")
                     st.rerun()
+        
+        st.markdown("---")
+        
+        # Кнопка сброса данных
+        with st.expander("🗑️ Управление данными", expanded=False):
+            if st.button("🔄 Сбросить workflow", use_container_width=True):
+                st.session_state.workflow = []
+                save_workflow_auto([])
+                st.rerun()
+            
+            if st.button("🗑️ Очистить чат", use_container_width=True):
+                st.session_state.agent_messages = []
+                save_messages_auto([])
+                st.rerun()
+            
+            if st.button("⚠️ Сбросить ВСЁ", use_container_width=True, type="secondary"):
+                # Удалить файлы данных
+                for f in [WORKFLOW_FILE, AGENTS_FILE, MESSAGES_FILE, HISTORY_FILE]:
+                    if f.exists():
+                        f.unlink()
+                # Сбросить session_state
+                for key in ['workflow', 'agent_messages', 'history', 'agents', 'data_loaded']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.rerun()
         
         st.markdown("---")
         st.markdown("## 📊 СТАТИСТИКА")
