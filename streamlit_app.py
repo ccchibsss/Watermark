@@ -83,7 +83,7 @@ def load_workflow_auto() -> List[Dict]:
     return []
 
 
-def save_agents_auto(agents_ Dict):
+def save_agents_auto(agents_data: Dict):
     """Автосохранение агентов"""
     try:
         with open(AGENTS_FILE, 'w', encoding='utf-8') as f:
