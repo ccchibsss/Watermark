@@ -1495,6 +1495,7 @@ class TableManager:
     ) -> Dict[str, Any]:
         """
         Анализирует DataFrame через ИИ и возвращает рекомендации.
+        Исправлено: robust JSON parsing
         
         Args:
             df: DataFrame для анализа
@@ -1557,10 +1558,33 @@ class TableManager:
             )
             
             content = response.choices[0].message.content
+            
+            # 1. Убираем markdown разметку ```json ... ```
+            if "```json" in content:
+                content = content.split("```json", 1)[1]
+                content = content.split("```", 1)[0]
+            elif "```" in content:
+                content = content.split("```", 1)[1]
+                content = content.split("```", 1)[0]
+            
+            # 2. Ищем JSON объект
             json_match = re.search(r'\{[\s\S]*\}', content)
             if json_match:
-                return json.loads(json_match.group())
-            return {'error': 'Не удалось распарсить ответ ИИ'}
+                json_str = json_match.group()
+                
+                # 3. Чистим от комментариев (иногда модели их вставляют)
+                json_str = re.sub(r'//[^\n]*', '', json_str)
+                json_str = re.sub(r'/\*[\s\S]*?\*/', '', json_str)
+                
+                # 4. Фиксим trailing commas (запятые перед } или ])
+                json_str = re.sub(r',(\s*[\]}])', r'\1', json_str)
+                
+                try:
+                    return json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    return {'error': f'Ошибка парсинга JSON: {str(e)}'}
+            
+            return {'error': 'Не удалось извлечь JSON из ответа'}
             
         except Exception as e:
             return {'error': f'Ошибка ИИ: {str(e)}'}
