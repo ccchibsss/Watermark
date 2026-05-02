@@ -83,7 +83,7 @@ def load_workflow_auto() -> List[Dict]:
     return []
 
 
-def save_agents_auto(agents_data: Dict):
+def save_agents_auto(agents_ Dict):
     """Автосохранение агентов"""
     try:
         with open(AGENTS_FILE, 'w', encoding='utf-8') as f:
@@ -347,10 +347,10 @@ class WorkflowStatus(Enum):
 
 
 # ============================================================================
-# CSS СТИЛИ С ПРАВИЛЬНЫМ ЦВЕТОМ ТЕКСТА ДЛЯ СВЕТЛЫХ И ТЁМНЫХ ФОНОВ
+# CSS СТИЛИ С ПРАВИЛЬНЫМИ ЦВЕТАМИ И БОРДЮРАМИ
 # ============================================================================
 def get_app_styles() -> str:
-    """Возвращает CSS стили с правильным контрастом: чёрный на светлом, белый на тёмном"""
+    """Возвращает CSS стили с правильными цветами и бордюрами"""
     return """
     <style>
         /* ========== БАЗОВЫЕ СТИЛИ ========== */
@@ -365,11 +365,14 @@ def get_app_styles() -> str:
             --text-on-dark: #ffffff;
             --text-on-light: #1a1a2e;
             --text-secondary: #4a4a6a;
+            --border-light: #cccccc;
+            --border-dark: #444466;
         }
         
         /* ========== БАЗОВЫЙ ТЕКСТ (для светлого фона Streamlit по умолчанию) ========== */
         body, .stApp, .main, .block-container {
             color: var(--text-on-light) !important;
+            background-color: #ffffff !important;
         }
         
         p, span, div, li, a, label, h1, h2, h3, h4, h5, h6 {
@@ -385,6 +388,39 @@ def get_app_styles() -> str:
             color: var(--text-secondary) !important;
         }
         
+        /* ========== ПОЛЯ ВВОДА - ЧЁРНЫЙ ТЕКСТ НА БЕЛОМ ФОНЕ ========== */
+        .stTextInput input,
+        .stTextArea textarea,
+        .stNumberInput input,
+        .stSelectbox select,
+        .stMultiselect select,
+        input[type="text"],
+        input[type="number"],
+        input[type="password"],
+        textarea {
+            color: #1a1a2e !important;
+            background-color: #ffffff !important;
+            border: 2px solid var(--border-light) !important;
+            border-radius: 8px !important;
+        }
+        
+        .stTextInput input::placeholder,
+        .stTextArea textarea::placeholder,
+        input::placeholder,
+        textarea::placeholder {
+            color: #888888 !important;
+            opacity: 1 !important;
+        }
+        
+        .stTextInput input:focus,
+        .stTextArea textarea:focus,
+        input:focus,
+        textarea:focus {
+            border-color: var(--accent-color) !important;
+            box-shadow: 0 0 0 3px rgba(78, 205, 196, 0.2) !important;
+            outline: none !important;
+        }
+        
         /* ========== MARKDOWN И СООБЩЕНИЯ ЧАТА ========== */
         .stMarkdown p, .stMarkdown div, .stMarkdown span, .stMarkdown label {
             color: var(--text-on-light) !important;
@@ -392,6 +428,14 @@ def get_app_styles() -> str:
         
         .stMarkdown strong, .stMarkdown b {
             color: var(--text-on-light) !important;
+        }
+        
+        .stChatMessage {
+            border: 1px solid var(--border-light) !important;
+            border-radius: 10px !important;
+            padding: 0.5rem !important;
+            margin: 0.3rem 0 !important;
+            background-color: #f8f9fa !important;
         }
         
         .stChatMessage p, .stChatMessage div, .stChatMessage span {
@@ -403,33 +447,19 @@ def get_app_styles() -> str:
             border-radius: 10px !important; 
             font-weight: 600 !important;
             transition: all 0.2s ease;
-            border: none !important;
+            border: 2px solid var(--border-light) !important;
+            background-color: #ffffff !important;
             color: var(--text-on-light) !important;
         }
         
         .stButton button:hover { 
             transform: scale(1.03); 
-            box-shadow: 0 5px 20px rgba(0,0,0,0.25);
-        }
-        
-        .stTextArea textarea, 
-        .stTextInput input { 
-            border-radius: 10px; 
-            border: 1px solid #ccc !important;
-            transition: border-color 0.2s;
-            color: var(--text-on-light) !important;
-            background-color: #ffffff !important;
-        }
-        
-        .stTextArea textarea::placeholder,
-        .stTextInput input::placeholder {
-            color: #888 !important;
-        }
-        
-        .stTextArea textarea:focus,
-        .stTextInput input:focus {
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
             border-color: var(--accent-color) !important;
-            box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.3);
+        }
+        
+        .stButton button:active {
+            transform: scale(0.98);
         }
         
         /* ========== ЗАГОЛОВОК (СВЕТЛЫЙ ФОН - ГРАДИЕНТ) ========== */
@@ -441,6 +471,7 @@ def get_app_styles() -> str:
             text-align: center;
             animation: fadeIn 1s ease-in;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
         }
         
         @keyframes fadeIn {
@@ -469,6 +500,7 @@ def get_app_styles() -> str:
             font-size: 0.85rem;
             margin-top: 0.5rem;
             color: white !important;
+            border: 1px solid rgba(255,255,255,0.4);
         }
         
         /* ========== КАРТОЧКИ АГЕНТОВ (ТЁМНЫЙ ФОН - БЕЛЫЙ ТЕКСТ) ========== */
@@ -477,6 +509,7 @@ def get_app_styles() -> str:
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0;
+            border: 2px solid var(--accent-color);
             border-left: 4px solid var(--accent-color); 
             transition: all 0.3s ease;
             cursor: pointer;
@@ -501,6 +534,7 @@ def get_app_styles() -> str:
         .agent-card:hover { 
             transform: translateX(5px); 
             box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+            border-color: var(--success-color);
         }
         
         .agent-card:hover::before { opacity: 1; }
@@ -509,6 +543,7 @@ def get_app_styles() -> str:
             border-left-color: var(--success-color);
             background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
             box-shadow: 0 0 20px rgba(0,255,136,0.2);
+            border: 2px solid var(--success-color);
         }
         
         .agent-stats {
@@ -529,6 +564,7 @@ def get_app_styles() -> str:
             color: white !important;
             transition: transform 0.3s, box-shadow 0.3s;
             box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
         }
         
         .stat-card *, .stat-card p, .stat-card span, .stat-card div {
@@ -558,6 +594,7 @@ def get_app_styles() -> str:
             padding: 1rem; 
             border-radius: 10px;
             margin: 0.5rem 0;
+            border: 2px solid var(--accent-color);
             border-left: 4px solid var(--accent-color);
             color: var(--text-on-dark) !important;
         }
@@ -594,6 +631,7 @@ def get_app_styles() -> str:
             padding: 1rem; 
             margin: 0.5rem 0; 
             color: var(--text-on-dark) !important;
+            border: 2px solid var(--accent-color);
             border-left: 4px solid var(--accent-color); 
             transition: all 0.3s ease;
             position: relative;
@@ -619,16 +657,19 @@ def get_app_styles() -> str:
         .workflow-node:hover { 
             transform: translateX(5px); 
             box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+            border-color: var(--success-color);
         }
         
         .workflow-node-success {
             border-left-color: var(--success-color);
             background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
+            border-color: var(--success-color);
         }
         
         .workflow-node-error {
             border-left-color: var(--error-color);
             background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%);
+            border-color: var(--error-color);
         }
         
         .workflow-connector {
@@ -642,7 +683,7 @@ def get_app_styles() -> str:
         div[data-testid="stExpander"] details {
             background: var(--dark-gradient);
             border-radius: 15px; 
-            border: none;
+            border: 2px solid var(--accent-color);
             margin: 0.5rem 0;
         }
         
@@ -664,6 +705,13 @@ def get_app_styles() -> str:
             border-radius: 10px;
             overflow: hidden;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border: 2px solid var(--border-light) !important;
+        }
+        
+        /* ========== БОКОВАЯ ПАНЕЛЬ ========== */
+        .css-1d391kg, .css-1y4t81c, [data-testid="stSidebar"] {
+            background-color: #f8f9fa !important;
+            border-right: 2px solid var(--border-light) !important;
         }
         
         /* ========== МОБИЛЬНАЯ АДАПТАЦИЯ ========== */
@@ -729,6 +777,7 @@ def get_app_styles() -> str:
             padding: 0.5rem;
             margin: 0.5rem 0;
             color: var(--text-on-dark) !important;
+            border: 2px solid var(--accent-color);
         }
         
         .progress-bar {
@@ -746,11 +795,12 @@ def get_app_styles() -> str:
             font-size: 0.75rem;
             font-weight: 500;
             margin: 0.2rem;
+            border: 1px solid currentColor;
         }
-        .tag-success { background: rgba(0,255,136,0.2); color: var(--success-color) !important; }
-        .tag-error { background: rgba(255,68,68,0.2); color: var(--error-color) !important; }
-        .tag-warning { background: rgba(255,165,0,0.2); color: var(--warning-color) !important; }
-        .tag-info { background: rgba(78,205,196,0.2); color: var(--accent-color) !important; }
+        .tag-success { background: rgba(0,255,136,0.2); color: var(--success-color) !important; border-color: var(--success-color); }
+        .tag-error { background: rgba(255,68,68,0.2); color: var(--error-color) !important; border-color: var(--error-color); }
+        .tag-warning { background: rgba(255,165,0,0.2); color: var(--warning-color) !important; border-color: var(--warning-color); }
+        .tag-info { background: rgba(78,205,196,0.2); color: var(--accent-color) !important; border-color: var(--accent-color); }
         
         /* ========== CODE И СПИСКИ ========== */
         code, pre, .stCode {
@@ -759,6 +809,7 @@ def get_app_styles() -> str:
             padding: 0.2rem 0.4rem;
             border-radius: 4px;
             font-weight: 500;
+            border: 1px solid var(--accent-color);
         }
         
         ul, ol, li {
@@ -768,10 +819,25 @@ def get_app_styles() -> str:
         /* ========== ALERTS ========== */
         .stAlert, .stInfo, .stSuccess, .stWarning, .stError {
             color: var(--text-on-light) !important;
+            border: 2px solid currentColor !important;
+            border-radius: 10px !important;
         }
         
         .stAlert *, .stInfo *, .stSuccess *, .stWarning *, .stError * {
             color: var(--text-on-light) !important;
+        }
+        
+        /* ========== ОБЩИЕ БОРДЮРЫ ДЛЯ БЛОКОВ ========== */
+        .stContainer, .stVerticalBlock, .stHorizontalBlock {
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 0.5rem;
+            margin: 0.3rem 0;
+        }
+        
+        /* Скрытие стандартных бордюров Streamlit для чистого вида */
+        .stApp [data-testid="stVerticalBlockBorderWrapper"] {
+            border: none !important;
         }
     </style>
     """
