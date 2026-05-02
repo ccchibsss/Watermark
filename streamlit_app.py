@@ -36,80 +36,95 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Стили CSS
+# Добавляем стиль для улучшения читаемости текста на фоне
 st.markdown("""
 <style>
-    .main-header {
+    body {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        font-family: 'Arial', sans-serif;
+    }
+    .main-header {
+        background: rgba(0, 0, 0, 0.3);
         padding: 2rem;
         border-radius: 20px;
         margin-bottom: 2rem;
         text-align: center;
-        animation: fadeIn 1s ease-in;
-    }
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-20px); }
-        to { opacity: 1; transform: translateY(0); }
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        backdrop-filter: blur(8px);
     }
     .main-header h1 {
-        color: white;
+        color: #fff;
         margin: 0;
         font-size: 2.5rem;
+        font-weight: bold;
     }
     .main-header p {
         color: rgba(255,255,255,0.9);
         margin-top: 0.5rem;
+        font-size: 1.2rem;
     }
+    /* Карточки агентов */
     .agent-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        background: rgba(26, 26, 46, 0.7);
         border-radius: 15px;
         padding: 1rem;
         margin: 0.5rem 0;
         border-left: 4px solid #4ECDC4;
-        transition: all 0.3s;
+        transition: all 0.3s ease;
         cursor: pointer;
+        backdrop-filter: blur(4px);
+        color: #fff;
     }
     .agent-card:hover {
         transform: translateX(5px);
-        box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.4);
     }
     .agent-card-selected {
         border-left-color: #00ff88;
-        background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
+        background: rgba(10, 46, 31, 0.7);
     }
+    /* Статические карточки */
     .stat-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: rgba(102, 126, 234, 0.8);
         padding: 1rem;
         border-radius: 15px;
         text-align: center;
-        color: white;
-        transition: transform 0.3s;
+        color: #fff;
+        font-weight: bold;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        transition: transform 0.3s ease;
     }
     .stat-card:hover {
         transform: translateY(-5px);
     }
+    /* Облако памяти */
     .memory-box {
-        background: #1e1e2e;
+        background: rgba(30, 30, 46, 0.7);
         padding: 1rem;
         border-radius: 10px;
         border-left: 4px solid #ffa500;
         margin: 0.5rem 0;
+        color: #fff;
     }
+    /* Облако обучения */
     .training-example {
-        background: #2a2a3e;
+        background: rgba(42, 42, 62, 0.7);
         padding: 0.8rem;
         border-radius: 8px;
         margin: 0.3rem 0;
         font-size: 0.9rem;
+        color: #fff;
     }
+    /* Ворклог нода */
     .workflow-node {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        background: rgba(26, 26, 46, 0.7);
         border-radius: 15px;
         padding: 1rem;
         margin: 0.5rem 0;
-        color: white;
+        color: #fff;
         border-left: 4px solid #4ECDC4;
-        transition: all 0.3s;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(4px);
     }
     .workflow-node:hover {
         transform: translateX(5px);
@@ -117,52 +132,76 @@ st.markdown("""
     }
     .workflow-node-success {
         border-left-color: #00ff88;
-        background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
+        background: rgba(10, 46, 31, 0.7);
     }
     .workflow-node-error {
         border-left-color: #ff4444;
-        background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%);
+        background: rgba(62, 26, 26, 0.7);
     }
+    /* Инфо бокс */
     .info-box {
-        background: #1e1e2e;
+        background: rgba(30, 30, 46, 0.7);
         padding: 1rem;
         border-radius: 10px;
         border-left: 4px solid #4ECDC4;
         margin: 1rem 0;
+        color: #fff;
     }
+    /* Условие блок */
     .condition-box {
-        background: #1e1e2e;
+        background: rgba(30, 30, 46, 0.7);
         padding: 1rem;
         border-radius: 10px;
         border-left: 4px solid #ffa500;
         margin: 0.5rem 0;
         font-family: monospace;
+        color: #fff;
     }
+    /* Кнопки */
     .stButton button {
         border-radius: 10px !important;
         font-weight: bold !important;
         transition: all 0.3s ease;
+        background: #4ECDC4;
+        color: #fff;
+        border: none;
+        padding: 0.5rem 1rem;
     }
     .stButton button:hover {
         transform: scale(1.02);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
-    .stTextArea textarea {
-        border-radius: 10px;
-    }
+    /* Текстовые области */
+    .stTextArea textarea,
     .stTextInput input {
         border-radius: 10px;
+        border: none;
+        padding: 0.5rem;
+        background: rgba(255,255,255,0.1);
+        color: #fff;
     }
+    /* Расширяемые блоки */
     div[data-testid="stExpander"] details {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        background: rgba(26, 26, 46, 0.7);
         border-radius: 15px;
         border: none;
+        padding: 0.5rem;
     }
     div[data-testid="stExpander"] summary {
-        color: white;
+        color: #fff;
         font-weight: bold;
+        font-size: 1.1rem;
     }
 </style>
+""", unsafe_allow_html=True)
+
+# Заголовок
+st.markdown("""
+<div class="main-header">
+    <h1>🧠 WORKFLOW BUILDER PRO v7.0</h1>
+    <p>Обучаемые ИИ агенты | Сохранение контекста | Персональные помощники | Русские условия</p>
+    <p style="font-size: 0.9rem;">⭐ Создавайте и обучайте своих ИИ агентов | 💾 Сохраняйте навсегда | 🔄 Обменивайтесь агентами</p>
+</div>
 """, unsafe_allow_html=True)
 
 # Заголовок
