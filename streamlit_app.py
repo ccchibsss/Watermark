@@ -1,7 +1,7 @@
-"""
+\"""
 ================================================================================
-КОНСТРУКТОР WORKFLOW PRO v7.0 - ПОЛНАЯ ВЕРСИЯ
-Обучаемые ИИ агенты | Сохранение | Русские условия | Полный функционал
+КОНСТРУКТОР WORKFLOW PRO v8.0 – ПОЛНАЯ ВЕРСИЯ
+Обучаемые ИИ агенты | Сохранение | Русские условия | Голосовой ввод | Мобильная адаптация
 ================================================================================
 """
 
@@ -10,213 +10,172 @@ import json
 import pandas as pd
 import requests
 from datetime import datetime
-import traceback
 import time
 import re
 import hashlib
-import os
-from typing import Dict, List, Tuple, Optional, Any
+from typing import Dict, List, Any, Optional
 import plotly.express as px
 from openai import OpenAI
-from pathlib import Path
 from io import BytesIO
 
-# ============================================================================ 
-# УТРЕБОВАНИЯ: UPGRADE - НЕОБХОДИМЫЕ МОДУЛИ
-# ============================================================================
+# ------------------- ГОЛОСОВЫЕ БИБЛИОТЕКИ -------------------
+import speech_recognition as sr
+from gtts import gTTS
 
-# ============================================================================ 
+# ============================================================================
 # НАСТРОЙКА СТРАНИЦЫ
 # ============================================================================
-
 st.set_page_config(
-    page_title="Workflow Builder Pro - Обучаемые ИИ Агенты",
+    page_title="Workflow Builder Pro – Голосовой помощник",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Добавляем стиль для улучшения читаемости текста на фоне
+# ----------------------------------------------------------------------------
+# СТИЛИ CSS (ВКЛЮЧАЯ МОБИЛЬНУЮ АДАПТАЦИЮ)
+# ----------------------------------------------------------------------------
 st.markdown("""
 <style>
-    body {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        font-family: 'Arial', sans-serif;
-    }
+    /* ---------- Базовые стили (как в v7.0) ---------- */
     .main-header {
-        background: rgba(0, 0, 0, 0.3);
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         padding: 2rem;
         border-radius: 20px;
         margin-bottom: 2rem;
         text-align: center;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        backdrop-filter: blur(8px);
+        animation: fadeIn 1s ease-in;
     }
-    .main-header h1 {
-        color: #fff;
-        margin: 0;
-        font-size: 2.5rem;
-        font-weight: bold;
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
     }
-    .main-header p {
-        color: rgba(255,255,255,0.9);
-        margin-top: 0.5rem;
-        font-size: 1.2rem;
-    }
-    /* Карточки агентов */
+    .main-header h1 { color: white; margin: 0; font-size: 2.5rem; }
+    .main-header p { color: rgba(255,255,255,0.9); margin-top: 0.5rem; }
     .agent-card {
-        background: rgba(26, 26, 46, 0.7);
-        border-radius: 15px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        border-left: 4px solid #4ECDC4;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        backdrop-filter: blur(4px);
-        color: #fff;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 15px; padding: 1rem; margin: 0.5rem 0;
+        border-left: 4px solid #4ECDC4; transition: all 0.3s; cursor: pointer;
     }
-    .agent-card:hover {
-        transform: translateX(5px);
-        box-shadow: 0 5px 20px rgba(0,0,0,0.4);
-    }
+    .agent-card:hover { transform: translateX(5px); box-shadow: 0 5px 20px rgba(0,0,0,0.3); }
     .agent-card-selected {
         border-left-color: #00ff88;
-        background: rgba(10, 46, 31, 0.7);
+        background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
     }
-    /* Статические карточки */
     .stat-card {
-        background: rgba(102, 126, 234, 0.8);
-        padding: 1rem;
-        border-radius: 15px;
-        text-align: center;
-        color: #fff;
-        font-weight: bold;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-        transition: transform 0.3s ease;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 1rem; border-radius: 15px; text-align: center; color: white;
+        transition: transform 0.3s;
     }
-    .stat-card:hover {
-        transform: translateY(-5px);
-    }
-    /* Облако памяти */
+    .stat-card:hover { transform: translateY(-5px); }
     .memory-box {
-        background: rgba(30, 30, 46, 0.7);
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #ffa500;
-        margin: 0.5rem 0;
-        color: #fff;
+        background: #1e1e2e; padding: 1rem; border-radius: 10px;
+        border-left: 4px solid #ffa500; margin: 0.5rem 0;
     }
-    /* Облако обучения */
     .training-example {
-        background: rgba(42, 42, 62, 0.7);
-        padding: 0.8rem;
-        border-radius: 8px;
-        margin: 0.3rem 0;
-        font-size: 0.9rem;
-        color: #fff;
+        background: #2a2a3e; padding: 0.8rem; border-radius: 8px;
+        margin: 0.3rem 0; font-size: 0.9rem;
     }
-    /* Ворклог нода */
     .workflow-node {
-        background: rgba(26, 26, 46, 0.7);
-        border-radius: 15px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        color: #fff;
-        border-left: 4px solid #4ECDC4;
-        transition: all 0.3s ease;
-        backdrop-filter: blur(4px);
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 15px; padding: 1rem; margin: 0.5rem 0; color: white;
+        border-left: 4px solid #4ECDC4; transition: all 0.3s;
     }
-    .workflow-node:hover {
-        transform: translateX(5px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    }
+    .workflow-node:hover { transform: translateX(5px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
     .workflow-node-success {
         border-left-color: #00ff88;
-        background: rgba(10, 46, 31, 0.7);
+        background: linear-gradient(135deg, #0a2e1f 0%, #0a1a10 100%);
     }
     .workflow-node-error {
         border-left-color: #ff4444;
-        background: rgba(62, 26, 26, 0.7);
+        background: linear-gradient(135deg, #3e1a1a 0%, #2a0f0f 100%);
     }
-    /* Инфо бокс */
     .info-box {
-        background: rgba(30, 30, 46, 0.7);
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #4ECDC4;
-        margin: 1rem 0;
-        color: #fff;
+        background: #1e1e2e; padding: 1rem; border-radius: 10px;
+        border-left: 4px solid #4ECDC4; margin: 1rem 0;
     }
-    /* Условие блок */
     .condition-box {
-        background: rgba(30, 30, 46, 0.7);
-        padding: 1rem;
-        border-radius: 10px;
-        border-left: 4px solid #ffa500;
-        margin: 0.5rem 0;
-        font-family: monospace;
-        color: #fff;
+        background: #1e1e2e; padding: 1rem; border-radius: 10px;
+        border-left: 4px solid #ffa500; margin: 0.5rem 0; font-family: monospace;
     }
-    /* Кнопки */
     .stButton button {
-        border-radius: 10px !important;
-        font-weight: bold !important;
+        border-radius: 10px !important; font-weight: bold !important;
         transition: all 0.3s ease;
-        background: #4ECDC4;
-        color: #fff;
-        border: none;
-        padding: 0.5rem 1rem;
     }
-    .stButton button:hover {
-        transform: scale(1.02);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    }
-    /* Текстовые области */
-    .stTextArea textarea,
-    .stTextInput input {
-        border-radius: 10px;
-        border: none;
-        padding: 0.5rem;
-        background: rgba(255,255,255,0.1);
-        color: #fff;
-    }
-    /* Расширяемые блоки */
+    .stButton button:hover { transform: scale(1.02); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+    .stTextArea textarea { border-radius: 10px; }
+    .stTextInput input { border-radius: 10px; }
     div[data-testid="stExpander"] details {
-        background: rgba(26, 26, 46, 0.7);
-        border-radius: 15px;
-        border: none;
-        padding: 0.5rem;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 15px; border: none;
     }
-    div[data-testid="stExpander"] summary {
-        color: #fff;
-        font-weight: bold;
-        font-size: 1.1rem;
+    div[data-testid="stExpander"] summary { color: white; font-weight: bold; }
+
+    /* ---------- МОБИЛЬНАЯ АДАПТАЦИЯ ---------- */
+    @media (max-width: 768px) {
+        .main-header h1 { font-size: 1.6rem !important; }
+        .main-header p { font-size: 0.8rem !important; }
+        .stat-card h3 { font-size: 1.2rem !important; }
+        .stButton button { 
+            padding: 0.7rem 1.2rem !important; 
+            font-size: 1rem !important;
+        }
+        .stTextArea textarea, .stTextInput input { 
+            font-size: 1rem !important; 
+            padding: 0.8rem !important;
+        }
+        div[data-testid="column"] {
+            flex: 1 1 100% !important;
+        }
+        .agent-card, .workflow-node, .memory-box {
+            padding: 0.8rem !important;
+            margin: 0.4rem 0 !important;
+        }
+    }
+    @media (min-width: 769px) {
+        div[data-testid="column"] {
+            flex: 1 1 48% !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Заголовок
+# ----------------------------------------------------------------------------
+# ЗАГОЛОВОК
+# ----------------------------------------------------------------------------
 st.markdown("""
 <div class="main-header">
-    <h1>🧠 WORKFLOW BUILDER PRO v7.0</h1>
-    <p>Обучаемые ИИ агенты | Сохранение контекста | Персональные помощники | Русские условия</p>
-    <p style="font-size: 0.9rem;">⭐ Создавайте и обучайте своих ИИ агентов | 💾 Сохраняйте навсегда | 🔄 Обменивайтесь агентами</p>
+    <h1>🧠 WORKFLOW BUILDER PRO v8.0</h1>
+    <p>Обучаемые ИИ агенты | Сохранение контекста | Голосовой ввод | Мобильная версия</p>
+    <p style="font-size: 0.9rem;">⭐ Создавайте и обучайте своих ИИ агентов | 💾 Сохраняйте навсегда | 🎤 Говорите с агентом</p>
 </div>
 """, unsafe_allow_html=True)
 
-# Заголовок
-st.markdown("""
-<div class="main-header">
-    <h1>🧠 WORKFLOW BUILDER PRO v7.0</h1>
-    <p>Обучаемые ИИ агенты | Сохранение контекста | Персональные помощники | Русские условия</p>
-    <p style="font-size: 0.9rem;">⭐ Создавайте и обучайте своих ИИ агентов | 💾 Сохраняйте навсегда | 🔄 Обменивайтесь агентами</p>
-</div>
-""", unsafe_allow_html=True)
+# ============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ГОЛОСОВОГО ПОМОЩНИКА
+# ============================================================================
+def recognize_speech_from_audio(audio_bytes: bytes) -> Optional[str]:
+    """Распознавание русской речи из аудиобайтов (WAV)."""
+    recognizer = sr.Recognizer()
+    try:
+        audio_file = BytesIO(audio_bytes)
+        with sr.AudioFile(audio_file) as source:
+            audio = recognizer.record(source)
+        return recognizer.recognize_google(audio, language="ru-RU")
+    except Exception:
+        return None
 
-# ============================================================================ 
+def text_to_speech_mp3(text: str) -> bytes:
+    """Генерация MP3 из текста (русский язык) с помощью gTTS."""
+    tts = gTTS(text=text, lang="ru", slow=False)
+    fp = BytesIO()
+    tts.write_to_fp(fp)
+    fp.seek(0)
+    return fp.read()
+
+# ============================================================================
 # КЛАСС ДЛЯ ПРЕОБРАЗОВАНИЯ РУССКИХ УСЛОВИЙ
 # ============================================================================
-
 class RussianConditionParser:
     """Преобразует условия на русском языке в исполняемый код"""
     
@@ -225,7 +184,6 @@ class RussianConditionParser:
         """Преобразует русское условие в структуру"""
         condition_text = condition_text.lower().strip()
         
-        # Шаблоны для распознавания
         patterns = {
             'больше': r'(.+?)\s+(больше|выше|>)\s+(.+)',
             'меньше': r'(.+?)\s+(меньше|ниже|<)\s+(.+)',
@@ -245,7 +203,6 @@ class RussianConditionParser:
             'examples': []
         }
         
-        # Проверка на "если ... то ..."
         if 'если' in condition_text and 'то' in condition_text:
             match = re.search(r'если\s+(.+?)\s+то', condition_text)
             if match:
@@ -254,7 +211,6 @@ class RussianConditionParser:
                 result['condition'] = condition_part
                 result['code'] = f"if {RussianConditionParser._to_code(condition_part)}:"
         
-        # Проверка на "иначе"
         elif 'иначе' in condition_text:
             parts = condition_text.split('иначе')
             if len(parts) == 2:
@@ -263,7 +219,6 @@ class RussianConditionParser:
                 result['false_branch'] = parts[1].strip()
                 result['code'] = f"if {RussianConditionParser._to_code(result['true_branch'])}:\n    # действие\nelse:\n    # другое действие"
         
-        # Простые сравнения
         else:
             for pattern_type, pattern in patterns.items():
                 match = re.search(pattern, condition_text)
@@ -273,14 +228,11 @@ class RussianConditionParser:
                     result['code'] = RussianConditionParser._generate_code(pattern_type, match.groups())
                     break
         
-        # Примеры для обучения
         result['examples'] = RussianConditionParser._get_examples()
-        
         return result
     
     @staticmethod
     def _to_code(condition: str) -> str:
-        """Преобразует часть условия в Python код"""
         replacements = {
             'больше': '>', 'выше': '>', 'меньше': '<', 'ниже': '<',
             'равно': '==', 'равняется': '==', 'содержит': 'in',
@@ -294,7 +246,6 @@ class RussianConditionParser:
     
     @staticmethod
     def _generate_code(pattern_type: str, groups: tuple) -> str:
-        """Генерирует Python код из распознанного шаблона"""
         codes = {
             'больше': f"if {groups[0].strip()} > {groups[2].strip()}:",
             'меньше': f"if {groups[0].strip()} < {groups[2].strip()}:",
@@ -314,10 +265,9 @@ class RussianConditionParser:
             "если поле пусто то заполнить значением по умолчанию"
         ]
 
-# ============================================================================ 
+# ============================================================================
 # КЛАСС ДЛЯ ХРАНЕНИЯ И ОБУЧЕНИЯ ИИ АГЕНТОВ
 # ============================================================================
-
 class AIAgent:
     """Класс для создания и обучения ИИ агентов"""
     
@@ -339,7 +289,6 @@ class AIAgent:
         }
     
     def add_training_example(self, user_input: str, expected_output: str, context: str = ""):
-        """Добавляет пример для обучения"""
         example = {
             'id': len(self.training_examples) + 1,
             'user_input': user_input,
@@ -354,7 +303,6 @@ class AIAgent:
         return example
     
     def add_to_memory(self, key: str, value: Any, importance: str = "normal"):
-        """Сохраняет в долговременную память агента"""
         memory_item = {
             'key': key,
             'value': value,
@@ -362,20 +310,17 @@ class AIAgent:
             'timestamp': datetime.now().isoformat(),
             'access_count': 0
         }
-        # Обновляем или добавляем
         existing_idx = None
         for i, mem in enumerate(self.memory):
             if mem['key'] == key:
                 existing_idx = i
                 break
-        
         if existing_idx is not None:
             self.memory[existing_idx] = memory_item
         else:
             self.memory.append(memory_item)
     
     def get_from_memory(self, key: str) -> Any:
-        """Получает из памяти агента"""
         for mem in self.memory:
             if mem['key'] == key:
                 mem['access_count'] += 1
@@ -383,7 +328,6 @@ class AIAgent:
         return None
     
     def add_conversation(self, user_message: str, agent_response: str, feedback: str = None):
-        """Сохраняет диалог для дальнейшего обучения"""
         conversation = {
             'user': user_message,
             'agent': agent_response,
@@ -394,49 +338,38 @@ class AIAgent:
         self.conversation_history.append(conversation)
         self.stats['total_conversations'] += 1
         
-        # Обновляем успешность на основе фидбека
         if feedback == 'positive':
             self.stats['success_rate'] = (self.stats['success_rate'] * (self.stats['total_conversations'] - 1) + 100) / self.stats['total_conversations']
         elif feedback == 'negative':
             self.stats['success_rate'] = (self.stats['success_rate'] * (self.stats['total_conversations'] - 1) + 0) / self.stats['total_conversations']
     
     def get_context_summary(self) -> str:
-        """Возвращает краткую сводку контекста агента"""
-        summary = f"Роль: {self.role}\n"
-        summary += f"Память: {len(self.memory)} фактов\n"
-        summary += f"Обучен на: {len(self.training_examples)} примерах\n"
-        return summary
+        return f"Роль: {self.role}\nПамять: {len(self.memory)} фактов\nОбучен на: {len(self.training_examples)} примерах\n"
     
     def generate_response(self, user_input: str, api_key: str, use_training: bool = True) -> str:
-        """Генерирует ответ с учётом обучения и памяти"""
         if not api_key:
             return "❌ API ключ не указан. Получите бесплатно на platform.deepseek.com"
         
         try:
             client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
             
-            # Собираем контекст из памяти
             memory_context = ""
             if self.memory:
                 memory_context = "\n\nЗНАНИЯ АГЕНТА (из памяти):\n"
                 for mem in self.memory[-5:]:
                     memory_context += f"- {mem['key']}: {mem['value']}\n"
             
-            # Собираем примеры обучения
             training_context = ""
             if use_training and self.training_examples:
                 training_context = "\n\nПРИМЕРЫ ОБУЧЕНИЯ:\n"
                 for ex in self.training_examples[-3:]:
-                    training_context += f"Пользователь: {ex['user_input']}\n"
-                    training_context += f"Правильный ответ: {ex['expected_output']}\n\n"
+                    training_context += f"Пользователь: {ex['user_input']}\nПравильный ответ: {ex['expected_output']}\n\n"
             
-            # Собираем историю диалогов
             history_context = ""
             if self.conversation_history:
                 history_context = "\n\nИСТОРИЯ ДИАЛОГОВ:\n"
                 for conv in self.conversation_history[-3:]:
-                    history_context += f"Пользователь: {conv['user']}\n"
-                    history_context += f"Агент: {conv['agent']}\n\n"
+                    history_context += f"Пользователь: {conv['user']}\nАгент: {conv['agent']}\n\n"
             
             full_prompt = f"""
 Ты - ИИ агент с именем "{self.name}" и ролью "{self.role}".
@@ -465,7 +398,6 @@ class AIAgent:
             return f"Ошибка: {str(e)}"
     
     def to_dict(self) -> Dict:
-        """Экспортирует агента в словарь для сохранения"""
         return {
             'id': self.id,
             'name': self.name,
@@ -481,7 +413,6 @@ class AIAgent:
     
     @classmethod
     def from_dict(cls, data: Dict) -> 'AIAgent':
-        """Создаёт агента из словаря"""
         agent = cls(
             name=data['name'],
             role=data['role'],
@@ -501,16 +432,14 @@ class AIAgent:
         })
         return agent
 
-# ============================================================================ 
+# ============================================================================
 # КЛАСС ДЛЯ ГЕНЕРАЦИИ WORKFLOW ЧЕРЕЗ ИИ
 # ============================================================================
-
 class AIWorkflowGenerator:
     """Генерирует workflow из текстового описания на русском"""
     
     @staticmethod
     def generate(description: str, api_key: str) -> List[Dict]:
-        """Генерирует workflow из описания"""
         if not api_key:
             return []
         
@@ -549,11 +478,9 @@ class AIWorkflowGenerator:
             )
             
             content = response.choices[0].message.content
-            # Извлекаем JSON из ответа
             json_match = re.search(r'\[[\s\S]*\]', content)
             if json_match:
-                workflow = json.loads(json_match.group())
-                return workflow
+                return json.loads(json_match.group())
             else:
                 return []
                 
@@ -561,10 +488,9 @@ class AIWorkflowGenerator:
             st.error(f"Ошибка генерации: {str(e)}")
             return []
 
-# ============================================================================ 
+# ============================================================================
 # МЕНЕДЖЕР АГЕНТОВ
 # ============================================================================
-
 class AgentManager:
     """Управляет всеми ИИ агентами"""
     
@@ -574,13 +500,11 @@ class AgentManager:
         self.load_agents()
     
     def load_agents(self):
-        """Загружает агентов из хранилища"""
         if 'agents' not in st.session_state:
             default_agents = self._create_default_agents()
             st.session_state.agents = {agent.id: agent.to_dict() for agent in default_agents}
             st.session_state.current_agent_id = default_agents[0].id if default_agents else None
         
-        # Восстанавливаем агентов из словарей
         for agent_id, agent_dict in st.session_state.agents.items():
             if agent_id not in self.agents:
                 self.agents[agent_id] = AIAgent.from_dict(agent_dict)
@@ -588,10 +512,8 @@ class AgentManager:
         self.current_agent_id = st.session_state.get('current_agent_id')
     
     def _create_default_agents(self) -> List[AIAgent]:
-        """Создаёт агентов по умолчанию"""
         agents = []
         
-        # Агент аналитик данных
         analyst = AIAgent(
             name="Аналитик Данных",
             role="эксперт по анализу данных и бизнес-метрикам",
@@ -603,7 +525,6 @@ class AgentManager:
         )
         agents.append(analyst)
         
-        # Агент помощник по автоматизации
         automation = AIAgent(
             name="Автоматизатор",
             role="специалист по автоматизации бизнес-процессов",
@@ -615,7 +536,6 @@ class AgentManager:
         )
         agents.append(automation)
         
-        # Агент менеджер задач
         manager = AIAgent(
             name="Менеджер Задач",
             role="помощник по управлению задачами и проектами",
@@ -630,19 +550,16 @@ class AgentManager:
         return agents
     
     def save_agents(self):
-        """Сохраняет агентов в сессию"""
         st.session_state.agents = {agent_id: agent.to_dict() for agent_id, agent in self.agents.items()}
         st.session_state.current_agent_id = self.current_agent_id
     
     def add_agent(self, name: str, role: str, system_prompt: str) -> AIAgent:
-        """Добавляет нового агента"""
         agent = AIAgent(name, role, system_prompt)
         self.agents[agent.id] = agent
         self.save_agents()
         return agent
     
     def delete_agent(self, agent_id: str):
-        """Удаляет агента"""
         if agent_id in self.agents:
             del self.agents[agent_id]
             if self.current_agent_id == agent_id:
@@ -650,26 +567,22 @@ class AgentManager:
             self.save_agents()
     
     def get_current_agent(self) -> Optional[AIAgent]:
-        """Возвращает текущего агента"""
         if self.current_agent_id and self.current_agent_id in self.agents:
             return self.agents[self.current_agent_id]
         return None
     
     def set_current_agent(self, agent_id: str):
-        """Устанавливает текущего агента"""
         if agent_id in self.agents:
             self.current_agent_id = agent_id
             st.session_state.current_agent_id = agent_id
             self.save_agents()
     
     def export_agent(self, agent_id: str) -> str:
-        """Экспортирует агента в JSON строку"""
         if agent_id in self.agents:
             return json.dumps(self.agents[agent_id].to_dict(), ensure_ascii=False, indent=2)
         return ""
     
     def import_agent(self, agent_json: str) -> bool:
-        """Импортирует агента из JSON строки"""
         try:
             data = json.loads(agent_json)
             agent = AIAgent.from_dict(data)
@@ -680,10 +593,9 @@ class AgentManager:
             st.error(f"Ошибка импорта: {str(e)}")
             return False
 
-# ============================================================================ 
-# КЛАСС ДЛЯ ВЫПОЛНЕНИЯ WORKFLOW (КАК В n8n)
 # ============================================================================
-
+# КЛАСС ДЛЯ ВЫПОЛНЕНИЯ WORKFLOW (ПОЛНОСТЬЮ)
+# ============================================================================
 class WorkflowExecutor:
     """Выполняет workflow с поддержкой условий на русском"""
     
@@ -697,7 +609,6 @@ class WorkflowExecutor:
         self.branch_stack = []
     
     def execute(self, progress_callback=None) -> Dict:
-        """Запускает выполнение workflow"""
         start_time = time.time()
         
         while self.current_node_index < len(self.workflow):
@@ -714,7 +625,6 @@ class WorkflowExecutor:
                     'timestamp': datetime.now().isoformat()
                 })
                 
-                # Обновляем контекст
                 if isinstance(result, dict):
                     self.context.update(result)
                 
@@ -739,52 +649,39 @@ class WorkflowExecutor:
         }
     
     def _execute_node(self, node: Dict) -> Any:
-        """Выполняет отдельный узел"""
         node_type = node.get('type')
         config = node.get('config', {})
         
         if node_type == 'google_sheets_read':
             return self._execute_google_sheets(config)
-        
         elif node_type == 'deepseek':
             return self._execute_deepseek(config)
-        
         elif node_type == 'http_get':
             return self._execute_http_get(config)
-        
         elif node_type == 'http_post':
             return self._execute_http_post(config)
-        
         elif node_type == 'condition':
             return self._execute_condition(config)
-        
         elif node_type == 'loop':
             return self._execute_loop(config)
-        
         elif node_type == 'email':
             return self._execute_email(config)
-        
         elif node_type == 'telegram':
             return self._execute_telegram(config)
-        
         elif node_type == 'ai_agent':
             return self._execute_ai_agent(config)
-        
         else:
             return {'status': 'unknown_type', 'type': node_type}
     
     def _execute_google_sheets(self, config: Dict) -> Dict:
-        """Выполняет чтение из Google Sheets"""
         sheet_url = config.get('sheet_url', '')
         if not sheet_url:
             return {'error': 'URL не указан'}
-        
         try:
             if '/d/' in sheet_url:
                 sheet_id = sheet_url.split('/d/')[1].split('/')[0]
             else:
                 sheet_id = sheet_url
-            
             csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
             df = pd.read_csv(csv_url)
             return {
@@ -796,19 +693,14 @@ class WorkflowExecutor:
             return {'error': str(e)}
     
     def _execute_deepseek(self, config: Dict) -> Dict:
-        """Выполняет запрос к DeepSeek AI"""
         if not self.api_key:
             return {'error': 'API ключ не указан'}
-        
         try:
             client = OpenAI(api_key=self.api_key, base_url="https://api.deepseek.com/v1")
-            
-            # Подставляем переменные из контекста
             user_prompt = config.get('user_prompt', '')
             for key, value in self.context.items():
                 if isinstance(value, str):
                     user_prompt = user_prompt.replace(f"{{{{{key}}}}}", value)
-            
             response = client.chat.completions.create(
                 model="deepseek-chat",
                 messages=[
@@ -817,7 +709,6 @@ class WorkflowExecutor:
                 ],
                 temperature=float(config.get('temperature', 0.3))
             )
-            
             return {
                 'response': response.choices[0].message.content,
                 'model': 'deepseek-chat'
@@ -826,15 +717,9 @@ class WorkflowExecutor:
             return {'error': str(e)}
     
     def _execute_condition(self, config: Dict) -> Dict:
-        """Выполняет условие на русском языке"""
         condition_text = config.get('condition', '')
-        
-        # Парсим русское условие
         parsed = RussianConditionParser.parse(condition_text)
-        
-        # Вычисляем условие
         result = self._evaluate_condition(condition_text)
-        
         return {
             'condition': condition_text,
             'result': result,
@@ -843,10 +728,7 @@ class WorkflowExecutor:
         }
     
     def _evaluate_condition(self, condition_text: str) -> bool:
-        """Вычисляет значение условия"""
         condition_text = condition_text.lower()
-        
-        # Простые проверки
         if 'больше' in condition_text:
             match = re.search(r'(\w+)\s+больше\s+(\d+)', condition_text)
             if match:
@@ -854,7 +736,6 @@ class WorkflowExecutor:
                 value = float(match.group(2))
                 context_value = self.context.get(var_name, 0)
                 return float(context_value) > value
-        
         elif 'меньше' in condition_text:
             match = re.search(r'(\w+)\s+меньше\s+(\d+)', condition_text)
             if match:
@@ -862,7 +743,6 @@ class WorkflowExecutor:
                 value = float(match.group(2))
                 context_value = self.context.get(var_name, 0)
                 return float(context_value) < value
-        
         elif 'равно' in condition_text or 'равняется' in condition_text:
             match = re.search(r'(\w+)\s+равно\s+(.+)', condition_text)
             if match:
@@ -870,7 +750,6 @@ class WorkflowExecutor:
                 value = match.group(2).strip().strip("'\"")
                 context_value = self.context.get(var_name, '')
                 return str(context_value) == value
-        
         elif 'содержит' in condition_text:
             match = re.search(r'(\w+)\s+содержит\s+(.+)', condition_text)
             if match:
@@ -878,20 +757,16 @@ class WorkflowExecutor:
                 value = match.group(2).strip().strip("'\"")
                 context_value = str(self.context.get(var_name, ''))
                 return value in context_value
-        
-        return True  # По умолчанию условие истинно
+        return True
     
     def _execute_loop(self, config: Dict) -> Dict:
-        """Выполняет цикл по элементам"""
         items = config.get('items', '[]')
         if isinstance(items, str):
             try:
                 items = json.loads(items)
             except:
                 items = []
-        
         batch_size = int(config.get('batch_size', 10))
-        
         return {
             'items': items,
             'count': len(items),
@@ -900,11 +775,9 @@ class WorkflowExecutor:
         }
     
     def _execute_http_get(self, config: Dict) -> Dict:
-        """Выполняет HTTP GET запрос"""
         url = config.get('url', '')
         if not url:
             return {'error': 'URL не указан'}
-        
         try:
             response = requests.get(url, timeout=30)
             return {
@@ -916,16 +789,13 @@ class WorkflowExecutor:
             return {'error': str(e)}
     
     def _execute_http_post(self, config: Dict) -> Dict:
-        """Выполняет HTTP POST запрос"""
         url = config.get('url', '')
         if not url:
             return {'error': 'URL не указан'}
-        
         try:
             body = config.get('body', '{}')
             if isinstance(body, str):
                 body = json.loads(body)
-            
             response = requests.post(url, json=body, timeout=30)
             return {
                 'status': response.status_code,
@@ -936,7 +806,6 @@ class WorkflowExecutor:
             return {'error': str(e)}
     
     def _execute_email(self, config: Dict) -> Dict:
-        """Подготавливает email (демо)"""
         return {
             'to': config.get('to', ''),
             'subject': config.get('subject', ''),
@@ -945,7 +814,6 @@ class WorkflowExecutor:
         }
     
     def _execute_telegram(self, config: Dict) -> Dict:
-        """Подготавливает Telegram (демо)"""
         return {
             'chat_id': config.get('chat_id', ''),
             'message': config.get('message', ''),
@@ -953,30 +821,24 @@ class WorkflowExecutor:
         }
     
     def _execute_ai_agent(self, config: Dict) -> Dict:
-        """Выполняет запрос к ИИ агенту"""
         if not self.agent_manager:
             return {'error': 'Менеджер агентов не инициализирован'}
-        
         agent_id = config.get('agent_id')
         if not agent_id or agent_id not in self.agent_manager.agents:
             return {'error': 'Агент не найден'}
-        
         agent = self.agent_manager.agents[agent_id]
         question = config.get('question', '')
         use_training = config.get('use_training', True)
-        
         response = agent.generate_response(question, self.api_key, use_training)
-        
         return {
             'agent': agent.name,
             'question': question,
             'response': response
         }
 
-# ============================================================================ 
+# ============================================================================
 # ИНИЦИАЛИЗАЦИЯ СЕССИИ
 # ============================================================================
-
 if 'agent_manager' not in st.session_state:
     st.session_state.agent_manager = AgentManager()
 if 'workflow' not in st.session_state:
@@ -991,13 +853,15 @@ if 'analytics' not in st.session_state:
         'successful_executions': 0,
         'failed_executions': 0
     }
+# Состояние для показа блока загрузки аудио
+if 'voice_show_upload' not in st.session_state:
+    st.session_state.voice_show_upload = False
 
 agent_manager = st.session_state.agent_manager
 
-# ============================================================================ 
-# БОКОВАЯ ПАНЕЛЬ - АГЕНТЫ
 # ============================================================================
-
+# БОКОВАЯ ПАНЕЛЬ – АГЕНТЫ
+# ============================================================================
 with st.sidebar:
     st.markdown("## 🧠 МОИ ИИ АГЕНТЫ")
     
@@ -1080,16 +944,17 @@ with st.sidebar:
         st.session_state.workflow = []
         st.rerun()
 
-# ============================================================================ 
+# ============================================================================
 # ОСНОВНЫЕ ВКЛАДКИ
 # ============================================================================
+tabs = st.tabs([
+    "💬 ДИАЛОГ С АГЕНТОМ", "📚 ОБУЧЕНИЕ", "🧠 ПАМЯТЬ", "📊 АНАЛИТИКА",
+    "🤖 WORKFLOW", "🔀 РУССКИЕ УСЛОВИЯ", "📖 ИНСТРУКЦИЯ", "🗂 Excel через AI"
+])
 
-tabs = st.tabs(["💬 ДИАЛОГ С АГЕНТОМ", "📚 ОБУЧЕНИЕ", "🧠 ПАМЯТЬ", "📊 АНАЛИТИКА", "🤖 WORKFLOW", "🔀 РУССКИЕ УСЛОВИЯ", "📖 ИНСТРУКЦИЯ", "🗂 Excel через AI"])
-
-# ============================================================================ 
-# ВКЛАДКА 1: ДИАЛОГ С АГЕНТОМ
 # ============================================================================
-
+# ВКЛАДКА 1: ДИАЛОГ С АГЕНТОМ (С ГОЛОСОВЫМ ВВОДОМ И ОЗВУЧКОЙ)
+# ============================================================================
 with tabs[0]:
     current_agent = agent_manager.get_current_agent()
     
@@ -1110,13 +975,16 @@ with tabs[0]:
         # Ввод сообщения
         user_input = st.text_area("✏️ Ваше сообщение:", height=100, key="agent_input")
         
-        col1, col2 = st.columns([1, 4])
+        # ---------- ГОЛОСОВОЙ БЛОК ----------
+        col1, col2, col3 = st.columns([1, 1, 2])
         with col1:
             use_training = st.checkbox("Использовать обучение", value=True)
         with col2:
+            if st.button("🎤 Голосовой ввод", use_container_width=True):
+                st.session_state.voice_show_upload = True
+        with col3:
             if st.button("🚀 Отправить", type="primary", use_container_width=True):
                 if user_input:
-                    # Добавляем сообщение пользователя
                     st.session_state.agent_messages.append({
                         'role': 'user',
                         'content': user_input,
@@ -1126,28 +994,46 @@ with tabs[0]:
                     with st.spinner(f"{current_agent.name} думает..."):
                         response = current_agent.generate_response(user_input, api_key, use_training)
                     
-                    # Добавляем ответ агента
                     st.session_state.agent_messages.append({
                         'role': 'agent',
                         'content': response,
                         'timestamp': datetime.now().isoformat()
                     })
                     
-                    # Сохраняем диалог
                     current_agent.add_conversation(user_input, response)
                     agent_manager.save_agents()
                     
                     st.rerun()
+        
+        # ---- Загрузка аудио ----
+        if st.session_state.voice_show_upload:
+            st.info("Загрузите аудиофайл с речью (WAV или MP3)")
+            audio_file = st.file_uploader("Выберите аудио", type=["wav", "mp3"], key="voice_file")
+            if audio_file is not None:
+                recognized = recognize_speech_from_audio(audio_file.read())
+                if recognized:
+                    st.success(f"Распознано: {recognized}")
+                    st.session_state.agent_input = recognized
+                    st.session_state.voice_show_upload = False
+                    st.rerun()
+                else:
+                    st.error("Не удалось распознать речь. Попробуйте другой файл.")
+        
+        # ---- Озвучка последнего ответа ----
+        if st.button("🔊 Озвучить последний ответ", use_container_width=True):
+            if st.session_state.agent_messages and st.session_state.agent_messages[-1]['role'] == 'agent':
+                last_resp = st.session_state.agent_messages[-1]['content']
+                audio_mp3 = text_to_speech_mp3(last_resp)
+                st.audio(audio_mp3, format="audio/mp3")
         
         # Кнопка очистки истории
         if st.button("🗑️ Очистить историю диалога"):
             st.session_state.agent_messages = []
             st.rerun()
 
-# ============================================================================ 
+# ============================================================================
 # ВКЛАДКА 2: ОБУЧЕНИЕ
 # ============================================================================
-
 with tabs[1]:
     current_agent = agent_manager.get_current_agent()
     
@@ -1233,10 +1119,9 @@ with tabs[1]:
                 else:
                     st.warning("Не найдено примеров в формате Вопрос -> Ответ")
 
-# ============================================================================ 
+# ============================================================================
 # ВКЛАДКА 3: ПАМЯТЬ
 # ============================================================================
-
 with tabs[2]:
     current_agent = agent_manager.get_current_agent()
     
@@ -1301,10 +1186,9 @@ with tabs[2]:
             st.success("Память очищена!")
             st.rerun()
 
-# ============================================================================ 
+# ============================================================================
 # ВКЛАДКА 4: АНАЛИТИКА
 # ============================================================================
-
 with tabs[3]:
     current_agent = agent_manager.get_current_agent()
     
@@ -1350,10 +1234,9 @@ with tabs[3]:
         else:
             st.info("Пока нет диалогов")
 
-# ============================================================================ 
+# ============================================================================
 # ВКЛАДКА 5: WORKFLOW
 # ============================================================================
-
 with tabs[4]:
     st.subheader("🤖 Интеграция ИИ агентов в workflow")
     
@@ -1541,10 +1424,9 @@ with tabs[4]:
         else:
             st.info("💡 Добавьте блоки из левой колонки для создания workflow")
 
-# ============================================================================ 
+# ============================================================================
 # ВКЛАДКА 6: РУССКИЕ УСЛОВИЯ
 # ============================================================================
-
 with tabs[5]:
     st.subheader("🔀 Русские условия для workflow")
     
@@ -1606,10 +1488,9 @@ with tabs[5]:
     | `между ... и ...` | В диапазоне | `сумма между 1000 и 5000` |
     """)
 
-# ============================================================================ 
+# ============================================================================
 # ВКЛАДКА 7: ИНСТРУКЦИЯ
 # ============================================================================
-
 with tabs[6]:
     st.subheader("📖 Полная инструкция для новичков")
     
@@ -1630,121 +1511,101 @@ with tabs[6]:
     Перейдите на вкладку **"ОБУЧЕНИЕ"** и добавьте примеры правильных ответов:
     """)
 
-# ============================================================================ 
-# ВКЛАДКА 8: EXCEL ЧЕРЕЗ AI
 # ============================================================================
-
+# ВКЛАДКА 8: EXCEL ЧЕРЕЗ AI (ИСПРАВЛЕНО – ТРЕБУЕТСЯ openpyxl)
+# ============================================================================
 with tabs[7]:
     st.subheader("🗂 Excel через ИИ (Загрузка и редактирование)")
 
-    # Инициализация менеджера Excel в session_state, если нет
-    if 'excel_manager' not in st.session_state:
-        # api_key можно передавать отдельно, здесь используем существующий api_key
-        class _Dummy:
-            pass
-        st.session_state.excel_manager = None  # будет создан ниже после проверки ключа
-        excel_manager = None
+    # Проверка наличия openpyxl
+    try:
+        import openpyxl  # достаточно для проверки
+    except ImportError:
+        st.error("Для работы с Excel необходим пакет openpyxl. Установите его командой: pip install openpyxl")
     else:
-        excel_manager = st.session_state.excel_manager
-
-    # Создаем ExcelManager только если есть API ключ (для редактирования через IA)
-    # Это не обязательно для загрузки, но для редактирования через IA нужен api_key
-    if 'excel_manager' not in st.session_state or st.session_state.excel_manager is None:
-        try:
-            # Реалистично: создаём менеджер только если api_key доступен
-            if api_key:
-                excel_manager = None  # временная инициализация
-                class _ExcelManagerBridge:
-                    """Легкий мост к функционалу ExcelManager без зависимости от внешних сущностей."""
-                    pass
-                # импортируем внутри, чтобы не нарушать основной поток, но на практике мы создаём реальный экземпляр ниже
-                from typing import Optional
-                excel_manager = None  # создадим ниже после загрузки файла
-            else:
-                excel_manager = None
-        except Exception:
+        # Инициализация менеджера Excel в session_state, если нет
+        if 'excel_manager' not in st.session_state:
+            st.session_state.excel_manager = None
             excel_manager = None
-        st.session_state.excel_manager = excel_manager
+        else:
+            excel_manager = st.session_state.excel_manager
 
-    # Экспорт/Импорт: покажем базовую функциональность без жесткой зависимости от внешних модулей
-    # Реализация: загрузка файла, просмотр, редактирование через IA, сохранение
-    with st.expander("🔎 Загрузить Excel для редактирования через IA", expanded=True):
-        # Шаг 1: загрузка файла
-        uploaded_file = st.file_uploader("Загрузить файл Excel (.xlsx, .xls)", type=["xlsx", "xls", "xlsm"])
-        if uploaded_file:
+        if 'excel_manager' not in st.session_state or st.session_state.excel_manager is None:
             try:
-                # Создаём DataFrame и сохраняем в окружение
-                df = pd.read_excel(BytesIO(uploaded_file.read()))
-                if 'excel_manager' not in st.session_state or st.session_state.excel_manager is None:
-                    # Сохранить DataFrame в session_state для дальнейшего использования
-                    st.session_state._excel_df = df
-                    st.session_state._excel_loaded = True
+                if api_key:
+                    excel_manager = None
+                    from typing import Optional  # noqa
                 else:
+                    excel_manager = None
+            except Exception:
+                excel_manager = None
+            st.session_state.excel_manager = excel_manager
+
+        with st.expander("🔎 Загрузить Excel для редактирования через IA", expanded=True):
+            uploaded_file = st.file_uploader("Загрузить файл Excel (.xlsx, .xls)", type=["xlsx", "xls", "xlsm"])
+            if uploaded_file:
+                try:
+                    # Используем openpyxl для чтения .xlsx
+                    df = pd.read_excel(BytesIO(uploaded_file.read()), engine='openpyxl')
                     st.session_state._excel_df = df
                     st.session_state._excel_loaded = True
-                st.success(f"Excel загружен: {df.shape[0]} строк, {df.shape[1]} столбцов")
-            except Exception as e:
-                st.error(f"Ошибка загрузки Excel: {e}")
+                    st.success(f"Excel загружен: {df.shape[0]} строк, {df.shape[1]} столбцов")
+                except Exception as e:
+                    st.error(f"Ошибка загрузки Excel: {e}")
 
-        # Шаг 2: просмотр первых строк
-        if hasattr(st.session_state, "_excel_df") and st.session_state._excel_df is not None:
-            st.markdown("### Просмотр данных (первый блок):")
-            st.dataframe(st.session_state._excel_df.head(200))
+            if hasattr(st.session_state, "_excel_df") and st.session_state._excel_df is not None:
+                st.markdown("### Просмотр данных (первый блок):")
+                st.dataframe(st.session_state._excel_df.head(200))
 
-            # Шаг 3: редактирование через IA
-            st.markdown("---")
-            st.subheader("🧠 Редактировать через IA")
-            edit_instruction = st.text_area(
-                "Опишите редактирование для DataFrame (на русском):",
-                height=120,
-                placeholder="Например: заменить все пустые значения в столбце 'Amount' на 0, переименовать столбец 'Date' в 'Дата', привести даты к формату YYYY-MM-DD"
-            )
+                st.markdown("---")
+                st.subheader("🧠 Редактировать через IA")
+                edit_instruction = st.text_area(
+                    "Опишите редактирование для DataFrame (на русском):",
+                    height=120,
+                    placeholder="Например: заменить все пустые значения в столбце 'Amount' на 0, переименовать столбец 'Date' в 'Дата', привести даты к формату YYYY-MM-DD"
+                )
 
-            if st.button("🔄 Применить правки через IA"):
-                if edit_instruction and api_key:
-                    # Логика редактирования: попытаться применить через IA
-                    try:
-                        # Превращаем текущий df в JSON и отправляем IA
-                        df = st.session_state._excel_df
-                        df_json = df.to_json(orient="split")
-                        # Простой пример использования IA через OpenAI API (как добавлено ранее)
-                        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
-                        prompt = f"""
+                if st.button("🔄 Применить правки через IA"):
+                    if edit_instruction and api_key:
+                        try:
+                            df = st.session_state._excel_df
+                            df_json = df.to_json(orient="split")
+                            client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
+                            prompt = f"""
 Дано датафрейм в формате JSON (split). Инструкция: {edit_instruction}
 
 Формат ответа: верни обновленный датафрейм в формате JSON (split), без дополнительных пояснений.
 """
-                        response = client.chat.completions.create(
-                            model="deepseek-chat",
-                            messages=[
-                                {"role": "system", "content": "Ты — помощник по редактированию таблиц. Возвращай только JSON-структуру датафрейма (split)."},
-                                {"role": "user", "content": prompt}
-                            ],
-                            temperature=0.3
-                        )
-                        updated_json = response.choices[0].message.content.strip()
-                        updated_df = pd.read_json(updated_json, orient="split")
-                        st.session_state._excel_df = updated_df
-                        st.success("Правки применены IA. Новая форма данных готова к сохранению.")
-                        st.dataframe(updated_df.head(200))
-                    except Exception as e:
-                        st.error(f"Ошибка при редактировании через IA: {e}")
-                else:
-                    st.warning("Укажите инструкцию и убедитесь, что API ключ доступен (боковая панель).")
-
-            # Шаг 4: сохранить обратно в Excel
-            if st.button("💾 Сохранить как Excel"):
-                if hasattr(st.session_state, "_excel_df") and st.session_state._excel_df is not None:
-                    save_path = st.text_input("Путь для сохранения файла:", value="edited_output.xlsx")
-                    if save_path:
-                        try:
-                            with BytesIO() as buffer:
-                                st.session_state._excel_df.to_excel(buffer, index=False)
-                                # записать файл на диск
-                                with open(save_path, "wb") as f:
-                                    f.write(buffer.getvalue())
-                            st.success(f"Файл сохранён: {save_path}")
+                            response = client.chat.completions.create(
+                                model="deepseek-chat",
+                                messages=[
+                                    {"role": "system", "content": "Ты — помощник по редактированию таблиц. Возвращай только JSON-структуру датафрейма (split)."},
+                                    {"role": "user", "content": prompt}
+                                ],
+                                temperature=0.3
+                            )
+                            updated_json = response.choices[0].message.content.strip()
+                            updated_df = pd.read_json(updated_json, orient="split")
+                            st.session_state._excel_df = updated_df
+                            st.success("Правки применены IA. Новая форма данных готова к сохранению.")
+                            st.dataframe(updated_df.head(200))
                         except Exception as e:
-                            st.error(f"Не удалось сохранить файл: {e}")
-                else:
-                    st.warning("Нет данных для сохранения. Загрузите файл сначала.")
+                            st.error(f"Ошибка при редактировании через IA: {e}")
+                    else:
+                        st.warning("Укажите инструкцию и убедитесь, что API ключ доступен (боковая панель).")
+
+                if st.button("💾 Сохранить как Excel"):
+                    if hasattr(st.session_state, "_excel_df") and st.session_state._excel_df is not None:
+                        save_path = st.text_input("Путь для сохранения файла:", value="edited_output.xlsx")
+                        if save_path:
+                            try:
+                                with BytesIO() as buffer:
+                                    # Сохраняем с openpyxl
+                                    st.session_state._excel_df.to_excel(buffer, index=False, engine='openpyxl')
+                                    with open(save_path, "wb") as f:
+                                        f.write(buffer.getvalue())
+                                st.success(f"Файл сохранён: {save_path}")
+                            except Exception as e:
+                                st.error(f"Не удалось сохранить файл: {e}")
+                    else:
+                        st.warning("Нет данных для сохранения. Загрузите файл сначала.")
