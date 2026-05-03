@@ -1,19 +1,19 @@
 """
 ================================================================================
-WORKFLOW BUILDER PRO v9.2 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
+WORKFLOW BUILDER PRO v9.3 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
 Обучаемые ИИ-агенты | Расширенная работа с таблицами | Голосовой ввод | 
-Работа с изображениями | Мобильная адаптация
+ИИ-обработка изображений | Мобильная адаптация
 ================================================================================
 
 Описание:
     Платформа для создания автоматизированных рабочих процессов с обучаемыми 
     ИИ-агентами, поддержкой русского языка, интеграцией с таблицами и 
-    продвинутым редактором изображений с ИИ.
+    продвинутым ИИ-редактором изображений с удалением водяных знаков.
 
 Особенности:
     • Монопоточная архитектура (без asyncio/multiprocessing)
     • Полная типизация и документация
-    • Расширенная работа с Google Sheets и Excel
+    • Расширенная работа с Google Sheets и Excel (ИСПРАВЛЕНО: sheet_names)
     • ИИ-анализ и трансформация данных
     • Голосовой ввод/вывод на русском языке
     • Парсер условий на естественном русском языке
@@ -21,17 +21,17 @@ WORKFLOW BUILDER PRO v9.2 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
     • 🆕 Чат-интерфейс с полем ввода сверху
     • 🆕 Редактирование таблиц с сохранением/удалением результатов
     • 🆕 Массовая работа с изображениями (10,000+ файлов)
-    • 🆕 ИИ-редактирование изображений (удаление фона, водяных знаков)
+    • 🆕 ИИ-удаление водяных знаков через Vision API
     • 🆕 Локальное сохранение результатов обработки изображений
 
 Зависимости:
     pip install streamlit pandas openpyxl openai plotly requests pillow rembg numpy
     
-    Для расширенной работы с изображениями:
+    Для расширенной работы с изображениями и ИИ:
     pip install opencv-python-headless torch torchvision
 
 Автор: Workflow Builder Team
-Версия: 9.2.0
+Версия: 9.3.0
 Дата: 2026
 Лицензия: MIT
 ================================================================================
@@ -66,12 +66,14 @@ try:
     from PIL import Image, ImageFilter, ImageEnhance, ImageOps, ImageDraw, ImageFont
     from rembg import remove
     import numpy as np
+    import cv2
     IMAGE_SUPPORT = True
 except ImportError:
     IMAGE_SUPPORT = False
     Image = None
     remove = None
     np = None
+    cv2 = None
 
 # Библиотеки для работы с таблицами
 try:
@@ -150,7 +152,7 @@ def load_workflow_auto() -> List[Dict]:
     return []
 
 
-def save_agents_auto(agents_data: Dict):
+def save_agents_auto(agents_ Dict):
     """Автосохранение агентов"""
     try:
         with open(AGENTS_FILE, 'w', encoding='utf-8') as f:
@@ -210,7 +212,7 @@ def load_history_auto() -> List[Dict]:
     return []
 
 
-def save_tables_auto(tables_data: Dict):
+def save_tables_auto(tables_ Dict):
     """Автосохранение таблиц"""
     try:
         with open(TABLES_FILE, 'w', encoding='utf-8') as f:
@@ -277,12 +279,13 @@ class AppConfig:
     """Глобальная конфигурация приложения"""
     APP_TITLE: str = "Workflow Builder Pro – Голосовой помощник"
     APP_ICON: str = "🧠"
-    APP_VERSION: str = "9.2.0"
+    APP_VERSION: str = "9.3.0"
     
     # API настройки
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     DEEPSEEK_MODEL: str = "deepseek-chat"
-    API_TIMEOUT: int = 120
+    DEEPSEEK_VISION_MODEL: str = "deepseek-vl"
+    API_TIMEOUT: int = 180
     MAX_TOKENS: int = 4096
     
     # Настройки таблиц
@@ -325,12 +328,7 @@ CONFIG = AppConfig()
 # DECORATORS И УТИЛИТЫ
 # ============================================================================
 def cache_result(ttl_seconds: int = CONFIG.CACHE_TTL_SECONDS):
-    """
-    Декоратор для кэширования результатов функций.
-    
-    Args:
-        ttl_seconds: Время жизни кэша в секундах
-    """
+    """Декоратор для кэширования результатов функций"""
     def decorator(func: Callable):
         cache: Dict[str, Tuple[Any, float]] = {}
         
@@ -353,12 +351,7 @@ def cache_result(ttl_seconds: int = CONFIG.CACHE_TTL_SECONDS):
 
 
 def handle_errors(default_return: Any = None):
-    """
-    Декоратор для обработки исключений с логированием.
-    
-    Args:
-        default_return: Значение, возвращаемое при ошибке
-    """
+    """Декоратор для обработки исключений с логированием"""
     def decorator(func: Callable):
         def wrapper(*args, **kwargs) -> Any:
             try:
@@ -380,10 +373,10 @@ def format_bytes(size: int) -> str:
     return f"{size:.1f} TB"
 
 
-def image_to_base64(image: Image.Image) -> str:
+def image_to_base64(image: Image.Image, format: str = "PNG") -> str:
     """Конвертирует PIL Image в base64 строку"""
     buffered = BytesIO()
-    image.save(buffered, format="PNG")
+    image.save(buffered, format=format)
     return base64.b64encode(buffered.getvalue()).decode()
 
 
@@ -391,6 +384,15 @@ def base64_to_image(base64_string: str) -> Image.Image:
     """Конвертирует base64 строку в PIL Image"""
     image_data = base64.b64decode(base64_string)
     return Image.open(BytesIO(image_data))
+
+
+def resize_image_for_api(image: Image.Image, max_size: int = 1024) -> Image.Image:
+    """Уменьшает изображение для отправки в API"""
+    if max(image.size) <= max_size:
+        return image
+    ratio = max_size / max(image.size)
+    new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
+    return image.resize(new_size, Image.Resampling.LANCZOS)
 
 
 # ============================================================================
@@ -455,6 +457,7 @@ class ImageEditOperation(Enum):
     """Операции редактирования изображений"""
     REMOVE_BACKGROUND = "remove_background"
     REMOVE_WATERMARK = "remove_watermark"
+    AI_REMOVE_WATERMARK = "ai_remove_watermark"
     RESIZE = "resize"
     CROP = "crop"
     ROTATE = "rotate"
@@ -472,52 +475,30 @@ def get_app_styles() -> str:
     """Возвращает CSS стили приложения"""
     return """
     <style>
-        /* ========== БАЗОВЫЕ СТИЛИ ========== */
         :root {
             --primary-gradient: linear-gradient(135deg, #6974dc 0%, #764ba2 100%);
-            --dark-gradient: linear-gradient(135deg, #ffffff 0%, #f0f2f6 100%);
             --success-color: #00ff88;
             --error-color: #ff4444;
             --warning-color: #ffa500;
             --accent-color: #4ECDC4;
-            --card-bg: #ffffff;
-            --text-on-dark: #000000;
             --text-on-light: #000000;
             --text-secondary: #4a4a6a;
-            --border-light: #e0e0e0;
-            --border-dark: #e0e0e0;
-            --block-bg: #ffffff;
         }
         
-        /* ========== БАЗОВЫЙ ТЕКСТ ========== */
         body, .stApp, .main, .block-container {
             color: var(--text-on-light) !important;
             background-color: #f0f2f6 !important;
         }
         
-        p, span, div, li, a, label, h1, h2, h3, h4, h5, h6 {
+        p, span, div, li, a, label, h1, h2, h3, h4, h5, h6, strong, b {
             color: var(--text-on-light) !important;
         }
         
-        strong, b {
-            color: var(--text-on-light) !important;
-            font-weight: 600 !important;
-        }
+        small, .caption { color: var(--text-secondary) !important; }
         
-        small, .caption {
-            color: var(--text-secondary) !important;
-        }
-        
-        /* ========== ПОЛЯ ВВОДА ========== */
-        .stTextInput input,
-        .stTextArea textarea,
-        .stNumberInput input,
-        .stSelectbox select,
-        .stMultiselect select,
-        input[type="text"],
-        input[type="number"],
-        input[type="password"],
-        textarea {
+        .stTextInput input, .stTextArea textarea, .stNumberInput input,
+        .stSelectbox select, .stMultiselect select, input[type="text"],
+        input[type="number"], input[type="password"], textarea {
             color: #000000 !important;
             background-color: #ffffff !important;
             border: none !important;
@@ -525,45 +506,6 @@ def get_app_styles() -> str:
             box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
         }
         
-        .stTextInput input::placeholder,
-        .stTextArea textarea::placeholder,
-        input::placeholder,
-        textarea::placeholder {
-            color: #888888 !important;
-            opacity: 1 !important;
-        }
-        
-        .stTextInput input:focus,
-        .stTextArea textarea:focus,
-        input:focus,
-        textarea:focus {
-            box-shadow: 0 2px 12px rgba(105, 116, 220, 0.3) !important;
-            outline: none !important;
-        }
-        
-        /* ========== MARKDOWN И СООБЩЕНИЯ ЧАТА ========== */
-        .stMarkdown p, .stMarkdown div, .stMarkdown span, .stMarkdown label {
-            color: #000000 !important;
-        }
-        
-        .stMarkdown strong, .stMarkdown b {
-            color: #000000 !important;
-        }
-        
-        .stChatMessage {
-            border: none !important;
-            border-radius: 12px !important;
-            padding: 0.8rem !important;
-            margin: 0.5rem 0 !important;
-            background-color: #ffffff !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-        }
-        
-        .stChatMessage p, .stChatMessage div, .stChatMessage span {
-            color: #000000 !important;
-        }
-        
-        /* ========== ЭЛЕМЕНТЫ УПРАВЛЕНИЯ ========== */
         .stButton button {
             border-radius: 12px !important; 
             font-weight: 600 !important;
@@ -580,59 +522,12 @@ def get_app_styles() -> str:
             background-color: #f8f9fa !important;
         }
         
-        .stButton button:active {
-            transform: scale(0.98);
-        }
-        
-        /* ========== БОКОВАЯ ПАНЕЛЬ ========== */
         [data-testid="stSidebar"] {
             background-color: #ffffff !important;
             border: none !important;
             box-shadow: 2px 0 10px rgba(0,0,0,0.05) !important;
         }
         
-        [data-testid="stSidebar"] .stButton button {
-            border: none !important;
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-        }
-        
-        [data-testid="stSidebar"] .stButton button:hover {
-            background-color: #f0f2f6 !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
-        }
-        
-        [data-testid="stSidebar"] p,
-        [data-testid="stSidebar"] span,
-        [data-testid="stSidebar"] label,
-        [data-testid="stSidebar"] h1,
-        [data-testid="stSidebar"] h2,
-        [data-testid="stSidebar"] h3,
-        [data-testid="stSidebar"] h4,
-        [data-testid="stSidebar"] h5,
-        [data-testid="stSidebar"] h6,
-        [data-testid="stSidebar"] div {
-            color: #000000 !important;
-        }
-        
-        [data-testid="stSidebar"] div[data-testid="stExpander"] details {
-            background-color: #ffffff !important;
-            border: none !important;
-            border-radius: 12px !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-        }
-        
-        [data-testid="stSidebar"] div[data-testid="stExpander"] summary {
-            color: #000000 !important;
-            font-weight: 600 !important;
-        }
-        
-        [data-testid="stSidebar"] div[data-testid="stExpander"] details * {
-            color: #000000 !important;
-        }
-        
-        /* ========== ЗАГОЛОВОК ========== */
         .main-header {
             background: var(--primary-gradient);
             padding: 2rem;
@@ -641,7 +536,6 @@ def get_app_styles() -> str:
             text-align: center;
             animation: fadeIn 1s ease-in;
             box-shadow: 0 10px 40px rgba(105, 116, 220, 0.3);
-            border: none !important;
         }
         
         @keyframes fadeIn {
@@ -649,19 +543,8 @@ def get_app_styles() -> str:
             to { opacity: 1; transform: translateY(0); }
         }
         
-        .main-header h1 { 
-            color: white !important; 
-            margin: 0; 
-            font-size: 2.5rem; 
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        .main-header p { 
-            color: rgba(255,255,255,0.95) !important; 
-            margin: 0.5rem 0 0 0; 
-            font-size: 1.1rem;
-        }
-        
+        .main-header h1 { color: white !important; margin: 0; font-size: 2.5rem; }
+        .main-header p { color: rgba(255,255,255,0.95) !important; margin: 0.5rem 0 0 0; }
         .version-badge {
             display: inline-block;
             background: rgba(255,255,255,0.2);
@@ -670,36 +553,17 @@ def get_app_styles() -> str:
             font-size: 0.85rem;
             margin-top: 0.5rem;
             color: white !important;
-            border: none !important;
         }
         
-        /* ========== КАРТОЧКИ АГЕНТОВ — БЕЛЫЙ ФОН ========== */
         .agent-card {
             background: #ffffff !important;
-            background-color: #ffffff !important;
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0;
             border: none !important;
             transition: all 0.3s ease;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
             color: #000000 !important;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-        }
-        
-        .agent-card *, .agent-card p, .agent-card span, .agent-card div {
-            color: #000000 !important;
-        }
-        
-        .agent-card::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(135deg, rgba(105, 116, 220, 0.05), transparent);
-            opacity: 0;
-            transition: opacity 0.3s;
         }
         
         .agent-card:hover { 
@@ -707,70 +571,20 @@ def get_app_styles() -> str:
             box-shadow: 0 8px 25px rgba(105, 116, 220, 0.2);
         }
         
-        .agent-card:hover::before { opacity: 1; }
-        
         .agent-card-selected {
             background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%) !important;
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
             border-left: 4px solid var(--success-color) !important;
         }
         
-        .agent-stats {
-            display: flex;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-            font-size: 0.8rem;
-            opacity: 0.9;
-            color: #4a4a6a !important;
-        }
-        
-        /* ========== ЦЕНТРИРОВАНИЕ КОРЗИНЫ В КАРТОЧКЕ АГЕНТА ========== */
-        [data-testid="stSidebar"] .stColumn:has([key^="del_"]) {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            flex: 0 0 auto !important;
-            max-width: 50px !important;
-        }
-        
-        [data-testid="stSidebar"] [key^="del_"] {
-            width: 36px !important;
-            height: 36px !important;
-            min-width: 36px !important;
-            border-radius: 50% !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            padding: 0 !important;
-            margin: auto !important;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1) !important;
-        }
-        
-        [data-testid="stSidebar"] [key^="del_"] svg {
-            width: 16px !important;
-            height: 16px !important;
-        }
-        
-        [data-testid="stSidebar"] [key^="del_"]:hover {
-            background-color: #fff0f0 !important;
-            box-shadow: 0 4px 12px rgba(255, 68, 68, 0.2) !important;
-        }
-        
-        /* ========== СТАТИСТИКА — БЕЛЫЙ ФОН ========== */
         .stat-card {
             background: #ffffff !important;
-            background-color: #ffffff !important;
             padding: 1.2rem; 
             border-radius: 15px; 
             text-align: center; 
             color: #000000 !important;
             transition: transform 0.3s, box-shadow 0.3s;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-            border: none !important;
-        }
-        
-        .stat-card *, .stat-card p, .stat-card span, .stat-card div {
-            color: #000000 !important;
         }
         
         .stat-card:hover { 
@@ -778,24 +592,11 @@ def get_app_styles() -> str:
             box-shadow: 0 10px 30px rgba(105, 116, 220, 0.15);
         }
         
-        .stat-card h3 { 
-            margin: 0; 
-            font-size: 2rem; 
-            font-weight: bold;
-            color: #6974dc !important;
-        }
+        .stat-card h3 { margin: 0; font-size: 2rem; font-weight: bold; color: #6974dc !important; }
+        .stat-card p { margin: 0.3rem 0 0 0; opacity: 0.9; color: #4a4a6a !important; }
         
-        .stat-card p { 
-            margin: 0.3rem 0 0 0; 
-            opacity: 0.9;
-            font-size: 0.9rem;
-            color: #4a4a6a !important;
-        }
-        
-        /* ========== БЛОКИ ПАМЯТИ И УСЛОВИЙ — БЕЛЫЙ ФОН ========== */
         .memory-box, .condition-box, .info-box {
             background: #ffffff !important;
-            background-color: #ffffff !important;
             padding: 1rem; 
             border-radius: 12px;
             margin: 0.5rem 0;
@@ -804,60 +605,19 @@ def get_app_styles() -> str:
             box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
         }
         
-        .memory-box *, .condition-box *, .info-box *,
-        .memory-box p, .condition-box p, .info-box p,
-        .memory-box span, .condition-box span, .info-box span {
-            color: #000000 !important;
-        }
-        
-        .memory-box strong, .memory-box b,
-        .condition-box strong, .condition-box b,
-        .info-box strong, .info-box b {
-            color: #000000 !important;
-            font-weight: 600 !important;
-        }
-        
-        .memory-box small, .condition-box small, .info-box small {
-            color: #4a4a6a !important;
-        }
-        
         .memory-box { border-left: 4px solid var(--warning-color) !important; }
-        .condition-box { 
-            border-left: 4px solid var(--warning-color) !important; 
-            font-family: 'Courier New', monospace;
-            font-size: 0.9rem;
-        }
+        .condition-box { border-left: 4px solid var(--warning-color) !important; font-family: 'Courier New', monospace; }
         .info-box { border-left: 4px solid var(--accent-color) !important; }
         
-        /* ========== УЗЛЫ WORKFLOW — БЕЛЫЙ ФОН ========== */
         .workflow-node {
             background: #ffffff !important;
-            background-color: #ffffff !important;
             border-radius: 15px; 
             padding: 1rem; 
             margin: 0.5rem 0; 
             color: #000000 !important;
             border: none !important;
             transition: all 0.3s ease;
-            position: relative;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-        }
-        
-        .workflow-node *, .workflow-node p, .workflow-node span, .workflow-node div {
-            color: #000000 !important;
-        }
-        
-        .workflow-node small {
-            color: #4a4a6a !important;
-        }
-        
-        .workflow-node::after {
-            content: '';
-            position: absolute;
-            bottom: -10px; left: 50%;
-            width: 2px; height: 10px;
-            background: var(--accent-color);
-            transform: translateX(-50%);
         }
         
         .workflow-node:hover { 
@@ -882,30 +642,6 @@ def get_app_styles() -> str:
             margin: 0.3rem 0;
         }
         
-        /* ========== EXPANDER — БЕЛЫЙ ФОН ========== */
-        div[data-testid="stExpander"] details {
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            border-radius: 12px; 
-            border: none !important;
-            margin: 0.5rem 0;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-        }
-        
-        div[data-testid="stExpander"] summary { 
-            color: #000000 !important; 
-            font-weight: 600;
-            padding: 0.8rem 1rem;
-        }
-        
-        div[data-testid="stExpander"] details *,
-        div[data-testid="stExpander"] details p,
-        div[data-testid="stExpander"] details span,
-        div[data-testid="stExpander"] details div {
-            color: #000000 !important;
-        }
-        
-        /* ========== ТАБЛИЦЫ ========== */
         .dataframe {
             border-radius: 10px;
             overflow: hidden;
@@ -914,201 +650,12 @@ def get_app_styles() -> str:
             background-color: #ffffff !important;
         }
         
-        /* ========== МОБИЛЬНАЯ АДАПТАЦИЯ ========== */
         @media (max-width: 768px) {
             .main-header { padding: 1.5rem; border-radius: 15px; }
             .main-header h1 { font-size: 1.8rem !important; }
-            .main-header p { font-size: 0.95rem !important; }
-            
-            .stat-card { padding: 1rem; }
-            .stat-card h3 { font-size: 1.5rem !important; }
-            .stat-card p { font-size: 0.85rem !important; }
-            
-            .stButton button { 
-                padding: 0.8rem 1.5rem !important; 
-                font-size: 1rem !important;
-                width: 100%;
-            }
-            
-            .stTextArea textarea, 
-            .stTextInput input { 
-                font-size: 1rem !important; 
-                padding: 0.9rem !important;
-            }
-            
-            div[data-testid="column"] {
-                flex: 1 1 100% !important;
-                max-width: 100% !important;
-            }
-            
-            .agent-card, .workflow-node, .memory-box {
-                padding: 0.9rem !important;
-                margin: 0.5rem 0 !important;
-            }
-            
+            .stButton button { padding: 0.8rem 1.5rem !important; width: 100%; }
+            div[data-testid="column"] { flex: 1 1 100% !important; max-width: 100% !important; }
             .desktop-only { display: none !important; }
-            .mobile-only { display: block !important; }
-        }
-        
-        @media (min-width: 769px) {
-            div[data-testid="column"] {
-                flex: 1 1 48% !important;
-            }
-            .mobile-only { display: none !important; }
-        }
-        
-        /* ========== АНИМАЦИИ ========== */
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        
-        .loading { animation: pulse 1.5s infinite; }
-        
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        
-        /* ========== ПРОГРЕСС БАР ========== */
-        .progress-container {
-            background: #ffffff !important;
-            background-color: #ffffff !important;
-            border-radius: 10px;
-            padding: 0.5rem;
-            margin: 0.5rem 0;
-            color: #000000 !important;
-            border: none !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-        }
-        
-        .progress-bar {
-            height: 8px;
-            background: var(--primary-gradient);
-            border-radius: 4px;
-            transition: width 0.3s ease;
-        }
-        
-        /* ========== TAGS ========== */
-        .tag {
-            display: inline-block;
-            padding: 0.2rem 0.6rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            margin: 0.2rem;
-            border: none !important;
-        }
-        .tag-success { background: rgba(0,255,136,0.15); color: #00cc6a !important; }
-        .tag-error { background: rgba(255,68,68,0.15); color: #ff4444 !important; }
-        .tag-warning { background: rgba(255,165,0,0.15); color: #ffa500 !important; }
-        .tag-info { background: rgba(78,205,196,0.15); color: #3bb4a8 !important; }
-        
-        /* ========== CODE И СПИСКИ ========== */
-        code, pre, .stCode {
-            color: var(--accent-color) !important;
-            background-color: rgba(78, 205, 196, 0.1) !important;
-            padding: 0.2rem 0.4rem;
-            border-radius: 4px;
-            font-weight: 500;
-            border: none !important;
-        }
-        
-        ul, ol, li {
-            color: #000000 !important;
-        }
-        
-        /* ========== ALERTS ========== */
-        .stAlert, .stInfo, .stSuccess, .stWarning, .stError {
-            color: #000000 !important;
-            border: none !important;
-            border-radius: 12px !important;
-            background-color: #ffffff !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
-        }
-        
-        .stAlert *, .stInfo *, .stSuccess *, .stWarning *, .stError * {
-            color: #000000 !important;
-        }
-        
-        /* ========== ОБЩИЕ БЛОКИ ========== */
-        .stContainer, .stVerticalBlock, .stHorizontalBlock {
-            border: none !important;
-            border-radius: 10px;
-            padding: 0.5rem;
-            margin: 0.3rem 0;
-        }
-        
-        /* Скрытие стандартных бордюров Streamlit */
-        .stApp [data-testid="stVerticalBlockBorderWrapper"] {
-            border: none !important;
-        }
-        
-        /* ========== СТИЛИ ДЛЯ КНОПКИ ЗАГРУЗКИ ========== */
-        .stFileUploader {
-            background-color: #ffffff !important;
-            border: none !important;
-            border-radius: 12px !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-        }
-        
-        /* ========== TABS ========== */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 4px;
-        }
-        
-        .stTabs [data-baseweb="tab"] {
-            background-color: #ffffff !important;
-            border: none !important;
-            border-radius: 10px !important;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.06) !important;
-            color: #000000 !important;
-        }
-        
-        .stTabs [aria-selected="true"] {
-            background: var(--primary-gradient) !important;
-            color: white !important;
-        }
-        
-        .stTabs [aria-selected="true"] p {
-            color: white !important;
-        }
-        
-        /* ========== ЧАТ-ИНТЕРФЕЙС ========== */
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            max-height: 60vh;
-            overflow-y: auto;
-            padding: 0.5rem;
-            background: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }
-        
-        .chat-message-user {
-            background: linear-gradient(135deg, #6974dc, #764ba2);
-            color: white !important;
-            padding: 0.8rem 1.2rem;
-            border-radius: 18px 18px 4px 18px;
-            margin-left: auto;
-            max-width: 80%;
-            box-shadow: 0 2px 8px rgba(105, 116, 220, 0.3);
-        }
-        
-        .chat-message-agent {
-            background: #f0f2f6;
-            color: #000000 !important;
-            padding: 0.8rem 1.2rem;
-            border-radius: 18px 18px 18px 4px;
-            margin-right: auto;
-            max-width: 80%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }
-        
-        .chat-message-user *, .chat-message-agent * {
-            color: inherit !important;
         }
         
         .chat-input-container {
@@ -1121,7 +668,24 @@ def get_app_styles() -> str:
             margin-bottom: 1rem;
         }
         
-        /* ========== РЕДАКТИРУЕМЫЕ ТАБЛИЦЫ ========== */
+        .chat-message-user {
+            background: linear-gradient(135deg, #6974dc, #764ba2);
+            color: white !important;
+            padding: 0.8rem 1.2rem;
+            border-radius: 18px 18px 4px 18px;
+            margin-left: auto;
+            max-width: 80%;
+        }
+        
+        .chat-message-agent {
+            background: #f0f2f6;
+            color: #000000 !important;
+            padding: 0.8rem 1.2rem;
+            border-radius: 18px 18px 18px 4px;
+            margin-right: auto;
+            max-width: 80%;
+        }
+        
         .table-editor {
             background: #ffffff;
             border-radius: 12px;
@@ -1130,35 +694,6 @@ def get_app_styles() -> str:
             margin: 0.5rem 0;
         }
         
-        .table-editor-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .table-actions {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-        
-        .saved-table-card {
-            background: #ffffff;
-            border-radius: 12px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-            border-left: 4px solid var(--accent-color);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-        }
-        
-        .saved-table-card * {
-            color: #000000 !important;
-        }
-        
-        /* ========== КАРТОЧКИ ИЗОБРАЖЕНИЙ ========== */
         .image-card {
             background: #ffffff;
             border-radius: 12px;
@@ -1168,12 +703,6 @@ def get_app_styles() -> str:
             text-align: center;
         }
         
-        .image-card img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
-        }
-        
         .image-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -1181,14 +710,6 @@ def get_app_styles() -> str:
             padding: 1rem;
         }
         
-        .image-preview-container {
-            background: #f8f9fa;
-            border-radius: 12px;
-            padding: 1rem;
-            margin: 0.5rem 0;
-        }
-        
-        /* ========== ПРОГРЕСС ЗАГРУЗКИ ========== */
         .upload-progress {
             background: linear-gradient(135deg, #6974dc, #764ba2);
             color: white;
@@ -1205,9 +726,7 @@ def get_app_styles() -> str:
 # КЛАСС ДЛЯ ПРЕОБРАЗОВАНИЯ РУССКИХ УСЛОВИЙ
 # ============================================================================
 class RussianConditionParser:
-    """
-    Преобразует условия на русском языке в исполняемый код.
-    """
+    """Преобразует условия на русском языке в исполняемый код"""
     
     PATTERNS: Dict[str, str] = {
         'greater': r'(.+?)\s+(больше|выше|превышает|>)\s+(.+)',
@@ -1238,10 +757,6 @@ class RussianConditionParser:
         "если статус равно 'успех' иначе отправить ошибку", 
         "если количество меньше 5 то пополнить склад",
         "если текст содержит 'срочно' то отметить как важное",
-        "если поле пусто то заполнить значением по умолчанию",
-        "если сумма между 1000 и 5000 то одобрить заявку",
-        "если имя начинается с 'VIP' то применить скидку",
-        "если дата заканчивается на '2024' то архивировать",
     ]
     
     @classmethod
@@ -1439,7 +954,7 @@ class ChartConfig:
 
 
 # ============================================================================
-# МЕНЕДЖЕР ДЛЯ РАБОТЫ С ТАБЛИЦАМИ
+# МЕНЕДЖЕР ДЛЯ РАБОТЫ С ТАБЛИЦАМИ (ИСПРАВЛЕНО: sheet_names)
 # ============================================================================
 class TableManager:
     """Универсальный менеджер для работы с Google Sheets и Excel"""
@@ -1544,7 +1059,10 @@ class TableManager:
         apply_formatting: bool = True,
         formatting_rules: Optional[Dict] = None
     ) -> bool:
-        """Записывает DataFrame в Excel с расширенным форматированием"""
+        """
+        Записывает DataFrame в Excel с расширенным форматированием.
+        ИСПРАВЛЕНО: доступ к sheet_names через writer.book.sheetnames
+        """
         if not EXCEL_SUPPORT:
             raise ImportError("Требуется openpyxl")
         
@@ -1562,9 +1080,25 @@ class TableManager:
         df: pd.DataFrame,
         rules: Optional[Dict] = None
     ):
-        """Применяет форматирование к листу Excel"""
-        worksheet = writer.sheets[writer.sheet_names[0]]
+        """
+        Применяет форматирование к листу Excel.
+        ИСПРАВЛЕНО: правильный доступ к листам через writer.sheets или writer.book
+        """
+        # ИСПРАВЛЕНИЕ: Получаем имя активного листа корректно
+        if hasattr(writer, 'book') and hasattr(writer.book, 'sheetnames'):
+            # Для openpyxl writer
+            sheet_names = writer.book.sheetnames
+            worksheet_name = sheet_names[0] if sheet_names else 'Sheet1'
+            worksheet = writer.book[worksheet_name]
+        elif hasattr(writer, 'sheets'):
+            # Альтернативный доступ
+            worksheet = list(writer.sheets.values())[0] if writer.sheets else None
+            if worksheet is None:
+                return
+        else:
+            return
         
+        # Авто-ширина колонок
         for column in worksheet.columns:
             max_length = max(
                 (len(str(cell.value)) if cell.value else 0) 
@@ -1573,6 +1107,7 @@ class TableManager:
             col_letter = column[0].column_letter
             worksheet.column_dimensions[col_letter].width = min(max_length + 2, 50)
         
+        # Форматирование заголовка
         header_fill = PatternFill(start_color="667eea", end_color="764ba2", fill_type="solid")
         header_font = Font(bold=True, color="FFFFFF")
         
@@ -1759,7 +1294,7 @@ class TableManager:
 
 
 # ============================================================================
-# 🆕 МЕНЕДЖЕР ДЛЯ РАБОТЫ С ИЗОБРАЖЕНИЯМИ
+# 🆕 МЕНЕДЖЕР ДЛЯ РАБОТЫ С ИЗОБРАЖЕНИЯМИ (С ИИ-УДАЛЕНИЕМ ВОДЯНЫХ ЗНАКОВ)
 # ============================================================================
 class ImageManager:
     """Менеджер для массовой обработки изображений с ИИ"""
@@ -1786,32 +1321,162 @@ class ImageManager:
         return Image.open(BytesIO(output))
     
     def remove_watermark_basic(self, image: Image.Image) -> Image.Image:
-        """Базовое удаление водяного знака (инпейнтинг)"""
-        if not IMAGE_SUPPORT:
-            raise ImportError("Установите PIL: pip install pillow")
+        """Базовое удаление водяного знака (инпейнтинг через OpenCV)"""
+        if not IMAGE_SUPPORT or cv2 is None or np is None:
+            raise ImportError("Установите opencv-python: pip install opencv-python")
         
-        # Конвертируем в numpy array
-        img_array = np.array(image)
+        # Конвертируем PIL в OpenCV
+        img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         
-        # Простая эвристика: ищем полупрозрачные области (типичный водяной знак)
+        # Простая эвристика: ищем полупрозрачные области или области с высокой контрастностью
         if image.mode == 'RGBA':
-            alpha = img_array[:, :, 3]
-            # Находим области с низкой прозрачностью
+            alpha = np.array(image)[:, :, 3]
+            # Находим области с низкой прозрачностью (типичный водяной знак)
             watermark_mask = (alpha < 200) & (alpha > 50)
         else:
-            # Для RGB ищем очень светлые или очень темные области в углах
-            gray = np.mean(img_array, axis=2)
-            watermark_mask = (gray > 240) | (gray < 20)
+            # Для RGB: ищем очень светлые или очень темные области
+            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+            _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            # Предполагаем, что водяной знак - это небольшие контрастные области
+            watermark_mask = binary < 128
         
-        # Простой инпейнтинг - замена на среднее значение соседей
-        result_array = img_array.copy()
+        # Инпейнтинг через OpenCV
+        mask_uint8 = (watermark_mask * 255).astype(np.uint8)
         
-        # Заменяем пиксели водяного знака на среднее значение изображения
-        if np.any(watermark_mask):
-            avg_color = np.mean(img_array[~watermark_mask], axis=0)
-            result_array[watermark_mask] = avg_color
+        # Применяем телеа-инпейнтинг
+        result_cv = cv2.inpaint(img_cv, mask_uint8, 3, cv2.INPAINT_TELEA)
         
-        return Image.fromarray(result_array.astype(np.uint8))
+        # Конвертируем обратно в PIL
+        result_rgb = cv2.cvtColor(result_cv, cv2.COLOR_BGR2RGB)
+        return Image.fromarray(result_rgb)
+    
+    @handle_errors(default_return=None)
+    def ai_remove_watermark(self, image: Image.Image, api_key: str, 
+                           description: str = "Удали водяной знак, сохранив основное изображение") -> Optional[Image.Image]:
+        """
+        🆕 ИИ-удаление водяного знака через Vision API
+        
+        Отправляет изображение в ИИ с инструкцией удалить водяной знак.
+        Использует возможности мультимодальных моделей для понимания контекста.
+        """
+        if not api_key:
+            raise ValueError("API ключ не указан")
+        
+        if not IMAGE_SUPPORT:
+            raise ImportError("Установите pillow: pip install pillow")
+        
+        try:
+            client = OpenAI(api_key=api_key, base_url=CONFIG.DEEPSEEK_BASE_URL)
+            
+            # Уменьшаем изображение для API
+            processed_image = resize_image_for_api(image, max_size=1024)
+            
+            # Конвертируем в base64
+            img_base64 = image_to_base64(processed_image, format="JPEG")
+            
+            # Формируем промпт для ИИ
+            prompt = f"""
+Ты эксперт по обработке изображений. 
+
+Задача: {description}
+
+Проанализируй изображение и определи:
+1. Где находится водяной знак/логотип/текст
+2. Как лучше всего его удалить, чтобы не повредить основное изображение
+3. Какие области нужно восстановить (инпейнтинг)
+
+Верни ответ в формате JSON:
+{{
+    "watermark_detected": true/false,
+    "watermark_location": {{
+        "description": "где находится водяной знак",
+        "approximate_coords": [x1, y1, x2, y2]
+    }},
+    "removal_strategy": "описание стратегии удаления",
+    "confidence": 0.0-1.0,
+    "instructions_for_post_processing": [
+        "шаг 1",
+        "шаг 2"
+    ]
+}}
+
+Если водяной знак не найден или удаление невозможно, верни watermark_detected: false.
+Отвечай ТОЛЬКО валидным JSON на русском или английском.
+"""
+            
+            # Отправляем запрос с изображением
+            response = client.chat.completions.create(
+                model=CONFIG.DEEPSEEK_VISION_MODEL if hasattr(CONFIG, 'DEEPSEEK_VISION_MODEL') else CONFIG.DEEPSEEK_MODEL,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{img_base64}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                temperature=0.2,
+                timeout=CONFIG.API_TIMEOUT,
+                max_tokens=CONFIG.MAX_TOKENS
+            )
+            
+            content = response.choices[0].message.content
+            
+            # Парсим JSON ответ
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                analysis = json.loads(json_match.group())
+                
+                if analysis.get('watermark_detected', False):
+                    # Применяем стратегию удаления на основе анализа ИИ
+                    return self._apply_ai_watermark_removal(image, analysis)
+                else:
+                    logger.info("ИИ не обнаружил водяной знак")
+                    return image  # Возвращаем оригинал
+            else:
+                # Если не удалось распарсить, пробуем базовый метод
+                logger.warning("Не удалось распарсить ответ ИИ, использую базовый метод")
+                return self.remove_watermark_basic(image)
+                
+        except Exception as e:
+            logger.error(f"Ошибка ИИ-удаления водяного знака: {e}")
+            # Фолбэк на базовый метод
+            try:
+                return self.remove_watermark_basic(image)
+            except:
+                return image
+    
+    def _apply_ai_watermark_removal(self, image: Image.Image, analysis: Dict) -> Image.Image:
+        """
+        Применяет стратегию удаления водяного знака на основе анализа ИИ
+        """
+        if not IMAGE_SUPPORT or cv2 is None or np is None:
+            return self.remove_watermark_basic(image)
+        
+        img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        coords = analysis.get('watermark_location', {}).get('approximate_coords')
+        
+        if coords and len(coords) == 4:
+            x1, y1, x2, y2 = coords
+            # Создаем маску для области водяного знака
+            mask = np.zeros(img_cv.shape[:2], dtype=np.uint8)
+            
+            # Рисуем прямоугольник маски
+            cv2.rectangle(mask, (int(x1), int(y1)), (int(x2), int(y2)), 255, -1)
+            
+            # Применяем инпейнтинг только к указанной области
+            result = cv2.inpaint(img_cv, mask, 3, cv2.INPAINT_TELEA)
+            result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
+            return Image.fromarray(result_rgb)
+        else:
+            # Если координаты не указаны, используем базовый метод
+            return self.remove_watermark_basic(image)
     
     def resize_image(self, image: Image.Image, width: Optional[int] = None, 
                      height: Optional[int] = None, maintain_aspect: bool = True) -> Image.Image:
@@ -1820,7 +1485,6 @@ class ImageManager:
             return image
         
         if maintain_aspect:
-            # Сохраняем пропорции
             img_width, img_height = image.size
             if width and height:
                 ratio = min(width / img_width, height / img_height)
@@ -1883,13 +1547,11 @@ class ImageManager:
                            font_size: int = 40, opacity: int = 128, 
                            color: Tuple[int, int, int] = (255, 255, 255)) -> Image.Image:
         """Добавляет текстовый водяной знак"""
-        # Создаем прозрачный слой
         if image.mode != 'RGBA':
             image = image.convert('RGBA')
         
         txt_layer = Image.new('RGBA', image.size, (255, 255, 255, 0))
         
-        # Пытаемся загрузить шрифт
         try:
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
         except:
@@ -1897,12 +1559,10 @@ class ImageManager:
         
         draw = ImageDraw.Draw(txt_layer)
         
-        # Получаем размер текста
         bbox = draw.textbbox((0, 0), text, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
-        # Определяем позицию
         img_width, img_height = image.size
         padding = 20
         
@@ -1912,105 +1572,36 @@ class ImageManager:
             x, y = img_width - text_width - padding, padding
         elif position == "bottom-left":
             x, y = padding, img_height - text_height - padding
-        else:  # bottom-right
+        else:
             x, y = img_width - text_width - padding, img_height - text_height - padding
         
-        # Рисуем текст
         draw.text((x, y), text, font=font, fill=(*color, opacity))
         
-        # Объединяем слои
         return Image.alpha_composite(image, txt_layer)
     
     def convert_format(self, image: Image.Image, format: str) -> Image.Image:
         """Конвертирует изображение в другой формат"""
         if format.upper() in ['JPEG', 'JPG']:
             if image.mode == 'RGBA':
-                # Создаем белый фон для JPEG
                 background = Image.new('RGB', image.size, (255, 255, 255))
                 background.paste(image, mask=image.split()[3])
                 return background
             return image.convert('RGB')
         return image
     
-    def ai_edit_image(self, image: Image.Image, instruction: str) -> Dict[str, Any]:
-        """
-        Использует ИИ для редактирования изображения
-        (через OpenAI DALL-E Edit API или аналогичный сервис)
-        """
-        if not self.api_key:
-            return {'error': 'API ключ не указан'}
-        
-        try:
-            client = OpenAI(api_key=self.api_key, base_url=CONFIG.DEEPSEEK_BASE_URL)
-            
-            # Конвертируем изображение в base64
-            img_base64 = image_to_base64(image)
-            
-            # Отправляем запрос на редактирование
-            # Примечание: это пример, реальный API может отличаться
-            prompt = f"""
-Ты эксперт по редактированию изображений.
-
-Инструкция: {instruction}
-
-Предложи параметры для редактирования в формате JSON:
-{{
-    "operations": [
-        {{
-            "type": "resize|crop|enhance|filter",
-            "params": {{...}}
-        }}
-    ],
-    "description": "что будет сделано"
-}}
-"""
-            
-            response = client.chat.completions.create(
-                model=CONFIG.DEEPSEEK_MODEL,
-                messages=[
-                    {"role": "system", "content": "Ты эксперт по обработке изображений."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                timeout=CONFIG.API_TIMEOUT,
-                max_tokens=CONFIG.MAX_TOKENS
-            )
-            
-            content = response.choices[0].message.content
-            
-            # Парсим JSON
-            json_match = re.search(r'\{[\s\S]*\}', content)
-            if json_match:
-                return json.loads(json_match.group())
-            
-            return {'error': 'Не удалось получить ответ от ИИ'}
-            
-        except Exception as e:
-            return {'error': f'Ошибка ИИ: {str(e)}'}
-    
     def process_batch(self, images: List[Tuple[str, Image.Image]], 
                       operation: ImageEditOperation, 
                       params: Dict[str, Any],
+                      api_key: Optional[str] = None,
                       progress_callback: Optional[Callable] = None) -> List[Tuple[str, Image.Image]]:
-        """
-        Обрабатывает пакет изображений
-        
-        Args:
-            images: Список кортежей (имя_файла, Image)
-            operation: Тип операции
-            params: Параметры операции
-            progress_callback: Функция обратного вызова для прогресса
-            
-        Returns:
-            Список обработанных изображений
-        """
+        """Обрабатывает пакет изображений"""
         self.total_count = len(images)
         self.processed_count = 0
         results = []
         
         for filename, image in images:
             try:
-                processed = self._apply_operation(image, operation, params)
+                processed = self._apply_operation(image, operation, params, api_key)
                 results.append((filename, processed))
                 
                 self.processed_count += 1
@@ -2024,13 +1615,20 @@ class ImageManager:
         return results
     
     def _apply_operation(self, image: Image.Image, operation: ImageEditOperation, 
-                         params: Dict[str, Any]) -> Image.Image:
+                         params: Dict[str, Any], api_key: Optional[str] = None) -> Image.Image:
         """Применяет операцию к изображению"""
         if operation == ImageEditOperation.REMOVE_BACKGROUND:
             return self.remove_background(image)
         
         elif operation == ImageEditOperation.REMOVE_WATERMARK:
             return self.remove_watermark_basic(image)
+        
+        elif operation == ImageEditOperation.AI_REMOVE_WATERMARK:
+            if api_key:
+                return self.ai_remove_watermark(image, api_key, params.get('description', 'Удали водяной знак'))
+            else:
+                logger.warning("API ключ не указан для ИИ-обработки, использую базовый метод")
+                return self.remove_watermark_basic(image)
         
         elif operation == ImageEditOperation.RESIZE:
             return self.resize_image(
@@ -2260,7 +1858,7 @@ class AIAgent:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict) -> 'AIAgent':
+    def from_dict(cls,  Dict) -> 'AIAgent':
         """Десериализует агента из словаря"""
         agent = cls(
             name=data['name'],
@@ -2634,7 +2232,6 @@ class WorkflowExecutor:
             client = OpenAI(api_key=self.api_key, base_url=CONFIG.DEEPSEEK_BASE_URL)
             user_prompt = config.get('user_prompt', '')
             
-            # Подстановка переменных из контекста
             for key, value in self.context.items():
                 if isinstance(value, str):
                     user_prompt = user_prompt.replace(f"{{{{{key}}}}}", value)
@@ -2921,8 +2518,8 @@ def initialize_session_state():
         'table_edit_mode': False,
         'editing_table_id': None,
         'image_manager': None,
-        'uploaded_images': {},  # Dict[filename, Image]
-        'processed_images': {},  # Dict[filename, Image]
+        'uploaded_images': {},
+        'processed_images': {},
         'image_batch_progress': 0,
     }
     
@@ -2930,7 +2527,6 @@ def initialize_session_state():
         if key not in st.session_state:
             st.session_state[key] = value
     
-    # Автозагрузка данных при первом запуске
     if not st.session_state.get('data_loaded'):
         saved_workflow = load_workflow_auto()
         if saved_workflow:
@@ -2957,7 +2553,6 @@ def initialize_session_state():
 
 def main():
     """Точка входа приложения"""
-    # Настройка страницы
     st.set_page_config(
         page_title=CONFIG.APP_TITLE,
         page_icon=CONFIG.APP_ICON,
@@ -2965,13 +2560,10 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Применение стилей
     st.markdown(get_app_styles(), unsafe_allow_html=True)
-    
-    # Инициализация сессии
     initialize_session_state()
     
-    # === АВТОСОХРАНЕНИЕ ПРИ ИЗМЕНЕНИЯХ ===
+    # Автосохранение
     current_workflow = st.session_state.get('workflow', [])
     if hasattr(st, '_last_workflow'):
         if current_workflow != st._last_workflow:
@@ -3000,7 +2592,7 @@ def main():
     st.markdown(f"""
     <div class="main-header">
         <h1>{CONFIG.APP_ICON} WORKFLOW BUILDER PRO v{CONFIG.APP_VERSION}</h1>
-        <p>Обучаемые ИИ агенты | Таблицы | Изображения | Голос | Мобильная версия</p>
+        <p>ИИ агенты | Таблицы | Изображения с ИИ | Голос | Мобильная версия</p>
         <span class="version-badge">Монопоточная версия • {datetime.now().strftime('%Y')}</span>
     </div>
     """, unsafe_allow_html=True)
@@ -3018,16 +2610,13 @@ def main():
         
         st.markdown("---")
         
-        # Менеджер агентов
         if st.session_state.agent_manager is None:
             st.session_state.agent_manager = AgentManager()
         
         agent_manager = st.session_state.agent_manager
         
-        # Список агентов
         for agent in agent_manager.agents.values():
             is_selected = agent_manager.current_agent_id == agent.id
-            selected_class = "agent-card-selected" if is_selected else ""
             
             col1, col2 = st.columns([4, 1])
             with col1:
@@ -3041,7 +2630,6 @@ def main():
         
         st.markdown("---")
         
-        # Создание агента
         with st.expander("➕ СОЗДАТЬ АГЕНТА", expanded=False):
             new_name = st.text_input("Имя", placeholder="Мой Помощник", key="new_agent_name")
             new_role = st.text_input("Роль", placeholder="эксперт по...", key="new_agent_role")
@@ -3057,7 +2645,6 @@ def main():
         
         st.markdown("---")
         
-        # Экспорт/Импорт
         with st.expander("🔄 ЭКСПОРТ/ИМПОРТ", expanded=False):
             current = agent_manager.get_current_agent()
             if current:
@@ -3078,7 +2665,6 @@ def main():
         
         st.markdown("---")
         
-        # Кнопка сброса данных
         with st.expander("🗑️ Управление данными", expanded=False):
             if st.button("🔄 Сбросить workflow", use_container_width=True):
                 st.session_state.workflow = []
@@ -3094,7 +2680,6 @@ def main():
                 for f in [WORKFLOW_FILE, AGENTS_FILE, MESSAGES_FILE, HISTORY_FILE, TABLES_FILE, IMAGES_METADATA_FILE]:
                     if f.exists():
                         f.unlink()
-                # Очищаем папку с изображениями
                 if IMAGES_DIR.exists():
                     shutil.rmtree(IMAGES_DIR)
                     IMAGES_DIR.mkdir(exist_ok=True)
@@ -3113,7 +2698,6 @@ def main():
             st.metric("Обучений", current_agent.stats['total_trainings'])
             st.metric("Диалогов", current_agent.stats['total_conversations'])
         
-        # Статистика изображений
         st.markdown("---")
         st.markdown("## 🖼️ Изображения")
         st.metric("Загружено", len(st.session_state.uploaded_images))
@@ -3125,15 +2709,14 @@ def main():
             st.session_state.workflow = []
             st.rerun()
     
-    # Менеджер таблиц
+    # Менеджеры
     if st.session_state.table_manager is None:
         st.session_state.table_manager = TableManager(api_key)
     
-    # Менеджер изображений
     if st.session_state.image_manager is None:
         st.session_state.image_manager = ImageManager(api_key)
     
-    # Основные вкладки
+    # Вкладки
     tabs = st.tabs([
         "💬 Диалог", "📚 Обучение", "🧠 Память", "📊 Аналитика",
         "🤖 Workflow", "🔀 Условия", "🗂 Таблицы+ИИ", "🖼️ Изображения", "📖 Справка"
@@ -3168,12 +2751,7 @@ def main():
 
 
 def render_chat_tab(agent_manager: AgentManager, api_key: str):
-    """
-    🆕 Рендерит вкладку диалога с агентом
-    - Поле ввода ВСЕГДА СВЕРХУ
-    - История сообщений снизу
-    - Автоочистка поля после отправки
-    """
+    """Рендерит вкладку диалога - ПОЛЕ ВВОДА ВСЕГДА СВЕРХУ"""
     current_agent = agent_manager.get_current_agent()
     
     if not current_agent:
@@ -3197,42 +2775,31 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
     col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
     
     with col1:
-        use_training = st.checkbox("📚 Обуч.", value=True, key="chat_use_training", 
-                                  help="Использовать примеры обучения")
+        use_training = st.checkbox("📚 Обуч.", value=True, key="chat_use_training")
     
     with col2:
-        if VOICE_SUPPORT and st.button("🎤", use_container_width=True, help="Голосовой ввод"):
+        if VOICE_SUPPORT and st.button("🎤", use_container_width=True):
             st.session_state.voice_show_upload = True
     
     with col3:
-        if st.button("🔊", use_container_width=True, help="Озвучить последний ответ"):
+        if st.button("🔊", use_container_width=True):
             if st.session_state.agent_messages and st.session_state.agent_messages[-1]['role'] == 'agent':
                 audio = text_to_speech_mp3(st.session_state.agent_messages[-1]['content'])
                 if audio:
                     st.audio(audio, format="audio/mp3")
     
     with col4:
-        # 🆕 Кнопка "Отправить" с автоочисткой поля ввода
         if st.button("🚀 Отправить", type="primary", use_container_width=True):
             if user_input.strip():
-                # Добавляем сообщение пользователя
                 st.session_state.agent_messages.append({'role': 'user', 'content': user_input.strip()})
+                st.session_state.chat_input = ""  # 🆕 Автоочистка
                 
-                # 🆕 НЕМЕДЛЕННО очищаем поле ввода
-                st.session_state.chat_input = ""
-                
-                # Генерируем ответ агента
                 with st.spinner("🤖 Агент думает..."):
                     response = current_agent.generate_response(user_input.strip(), api_key, use_training)
                 
-                # Добавляем ответ агента
                 st.session_state.agent_messages.append({'role': 'agent', 'content': response})
-                
-                # Сохраняем в историю агента
                 current_agent.add_conversation(user_input.strip(), response)
                 agent_manager.save_agents()
-                
-                # 🆕 Принудительный ререндер
                 st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
@@ -3240,23 +2807,19 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
     # 🆕 ИСТОРИЯ СООБЩЕНИЙ (после поля ввода)
     st.markdown("### 📜 История диалога")
     
-    chat_container = st.container()
-    with chat_container:
-        if not st.session_state.agent_messages:
-            st.info("💬 Начните диалог, введя сообщение выше")
-        else:
-            for msg in st.session_state.agent_messages:
-                if msg['role'] == 'user':
-                    st.markdown(f'<div class="chat-message-user"><strong>👤 Вы:</strong><br>{msg["content"]}</div>', 
-                               unsafe_allow_html=True)
-                else:
-                    st.markdown(f'<div class="chat-message-agent"><strong>🤖 {current_agent.name}:</strong><br>{msg["content"]}</div>', 
-                               unsafe_allow_html=True)
+    if not st.session_state.agent_messages:
+        st.info("💬 Начните диалог, введя сообщение выше")
+    else:
+        for msg in st.session_state.agent_messages:
+            if msg['role'] == 'user':
+                st.markdown(f'<div class="chat-message-user"><strong>👤 Вы:</strong><br>{msg["content"]}</div>', 
+                           unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="chat-message-agent"><strong>🤖 {current_agent.name}:</strong><br>{msg["content"]}</div>', 
+                           unsafe_allow_html=True)
     
-    # Голосовой ввод (если активирован)
     if st.session_state.voice_show_upload:
         with st.expander("🎤 Голосовой ввод", expanded=True):
-            st.info("Загрузите аудиофайл (WAV/MP3) для распознавания речи")
             audio_file = st.file_uploader("Выберите файл", type=["wav", "mp3"], key="voice_upload")
             if audio_file:
                 recognized = recognize_speech_from_audio(audio_file.read())
@@ -3265,10 +2828,7 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
                     st.session_state.chat_input = recognized
                     st.session_state.voice_show_upload = False
                     st.rerun()
-                else:
-                    st.error("❌ Не удалось распознать речь")
     
-    # Кнопка очистки чата
     if st.button("🗑️ Очистить диалог", use_container_width=True):
         st.session_state.agent_messages = []
         save_messages_auto([])
@@ -3543,8 +3103,7 @@ def render_conditions_tab():
     <div class="info-box">
     <b>Примеры:</b><br>
     • если цена больше 1000 то отправить уведомление<br>
-    • если статус равно 'успех' иначе отправить ошибку<br>
-    • если количество меньше 5 то пополнить склад
+    • если статус равно 'успех' иначе отправить ошибку
     </div>
     """, unsafe_allow_html=True)
     
@@ -3572,17 +3131,6 @@ def render_conditions_tab():
                 st.success(f"💻 `{parsed['code']}`")
             else:
                 st.warning("⚠️ Не распознано")
-    
-    st.markdown("---")
-    st.markdown("""
-    | Оператор | Пример |
-    |----------|--------|
-    | больше, > | цена больше 1000 |
-    | меньше, < | количество < 5 |
-    | равно, == | статус равно 'ок' |
-    | содержит | текст содержит 'срочно' |
-    | между | сумма между 100 и 500 |
-    """)
 
 
 def render_tables_tab(api_key: str):
@@ -3592,13 +3140,10 @@ def render_tables_tab(api_key: str):
     if not EXCEL_SUPPORT:
         st.warning("⚠️ Установите openpyxl: `pip install openpyxl`")
     
-    # Список сохранённых таблиц
     with st.expander("📚 Сохранённые таблицы", expanded=not st.session_state.saved_tables):
         if not st.session_state.saved_tables:
-            st.info("💡 Нет сохранённых таблиц. Загрузите или создайте таблицу, чтобы сохранить её здесь.")
+            st.info("💡 Нет сохранённых таблиц")
         else:
-            st.markdown("### 📚 Сохранённые таблицы")
-            
             for table_id, df in st.session_state.saved_tables.items():
                 with st.expander(f"📊 {table_id} ({df.shape[0]}×{df.shape[1]})", expanded=False):
                     st.dataframe(df.head(5), use_container_width=True)
@@ -3695,9 +3240,6 @@ def render_tables_tab(api_key: str):
                         st.download_button("📥 Excel", f, file_name=f"{st.session_state.editing_table_id}.xlsx", 
                                          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                          key=f"dl_{st.session_state.editing_table_id}", use_container_width=True)
-            with col_actions[3]:
-                if st.button("✏️ ИИ", key=f"ai_{st.session_state.editing_table_id}", use_container_width=True):
-                    st.session_state.table_edit_mode = True
             
             st.markdown("#### ✏️ Редактирование данных")
             edited_df = st.data_editor(
@@ -3714,52 +3256,14 @@ def render_tables_tab(api_key: str):
                 save_tables_auto(st.session_state.saved_tables)
                 st.toast("🔄 Изменения сохранены", icon="💾")
             
-            if st.session_state.table_edit_mode:
-                with st.expander("🤖 ИИ-помощник для таблиц", expanded=True):
-                    instruction = st.text_area(
-                        "Опишите, что сделать с таблицей:",
-                        placeholder="Пример: удали пустые строки, добавь столбец Итого",
-                        height=80,
-                        key=f"ai_instruction_{st.session_state.editing_table_id}"
-                    )
-                    
-                    if st.button("🚀 Применить ИИ", type="primary", key=f"ai_apply_{st.session_state.editing_table_id}"):
-                        if instruction and api_key:
-                            with st.spinner("🧠 Анализирую..."):
-                                result = st.session_state.table_manager.ai_analyze_dataframe(
-                                    edited_df, instruction, api_key
-                                )
-                                
-                                if 'error' not in result:
-                                    st.success("✅ Анализ завершён")
-                                    st.markdown(f"**🔍 Анализ:** {result.get('analysis', '')}")
-                                    
-                                    if result.get('ready_code'):
-                                        st.code(result['ready_code'], language='python')
-                                        if st.button("💾 Применить код", key=f"apply_code_{st.session_state.editing_table_id}"):
-                                            try:
-                                                transformed_df = st.session_state.table_manager.execute_transformation(
-                                                    edited_df.copy(), result['ready_code']
-                                                )
-                                                st.session_state.current_df = transformed_df
-                                                st.session_state.saved_tables[st.session_state.editing_table_id] = transformed_df.copy()
-                                                save_tables_auto(st.session_state.saved_tables)
-                                                st.success("✅ Применено!")
-                                                st.session_state.table_edit_mode = False
-                                                st.rerun()
-                                            except Exception as e:
-                                                st.error(f"❌ Ошибка: {e}")
-                                else:
-                                    st.error(f"❌ {result['error']}")
-            
             st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.info("💡 Загрузите таблицу слева или выберите из сохранённых выше")
 
 
 def render_images_tab(api_key: str):
-    """🆕 Рендерит вкладку работы с изображениями"""
-    st.subheader("🖼️ Редактор изображений с ИИ")
+    """🆕 Рендерит вкладку работы с изображениями с ИИ-удалением водяных знаков"""
+    st.subheader("🖼️ ИИ-Редактор изображений")
     
     if not IMAGE_SUPPORT:
         st.error("⚠️ Установите необходимые библиотеки:")
@@ -3768,7 +3272,6 @@ def render_images_tab(api_key: str):
     
     image_manager = st.session_state.image_manager
     
-    # Вкладки для разных операций
     img_tabs = st.tabs([
         "📥 Загрузка", "✏️ Редактирование", "🎨 Массовая обработка", 
         "💾 Результаты", "📊 Статистика"
@@ -3776,14 +3279,13 @@ def render_images_tab(api_key: str):
     
     with img_tabs[0]:
         st.markdown("### 📥 Массовая загрузка изображений")
-        st.info(f"💡 Поддерживается загрузка до {CONFIG.MAX_IMAGE_UPLOAD} файлов. Форматы: {', '.join(CONFIG.SUPPORTED_IMAGE_FORMATS)}")
+        st.info(f"💡 Поддерживается загрузка до {CONFIG.MAX_IMAGE_UPLOAD} файлов")
         
         uploaded_files = st.file_uploader(
             "Выберите изображения",
             type=list(CONFIG.SUPPORTED_IMAGE_FORMATS),
             accept_multiple_files=True,
-            key="image_upload",
-            help="Можно выбрать несколько файлов одновременно"
+            key="image_upload"
         )
         
         if uploaded_files:
@@ -3794,44 +3296,37 @@ def render_images_tab(api_key: str):
             
             for i, uploaded_file in enumerate(uploaded_files):
                 try:
-                    # Проверяем размер файла
                     file_size_mb = uploaded_file.size / (1024 * 1024)
                     if file_size_mb > CONFIG.MAX_IMAGE_SIZE_MB:
-                        st.warning(f"⚠️ Файл {uploaded_file.name} превышает {CONFIG.MAX_IMAGE_SIZE_MB}MB и будет пропущен")
+                        st.warning(f"⚠️ {uploaded_file.name} > {CONFIG.MAX_IMAGE_SIZE_MB}MB - пропущен")
                         continue
                     
-                    # Открываем изображение
                     image = Image.open(uploaded_file)
-                    
-                    # Сохраняем в session_state
                     st.session_state.uploaded_images[uploaded_file.name] = image
                     
-                    # Обновляем прогресс
                     progress_bar.progress((i + 1) / len(uploaded_files))
-                    status_text.text(f"Загрузка: {uploaded_file.name} ({image.size[0]}x{image.size[1]})")
+                    status_text.text(f"Загрузка: {uploaded_file.name}")
                     
                 except Exception as e:
-                    st.error(f"❌ Ошибка загрузки {uploaded_file.name}: {e}")
+                    st.error(f"❌ Ошибка {uploaded_file.name}: {e}")
             
             progress_bar.empty()
             status_text.empty()
             st.success(f"✅ Загружено {len(st.session_state.uploaded_images)} изображений")
             
-            # Предпросмотр первых 6 изображений
             if st.session_state.uploaded_images:
                 st.markdown("### 👁️ Предпросмотр")
                 cols = st.columns(3)
                 for idx, (filename, img) in enumerate(list(st.session_state.uploaded_images.items())[:6]):
                     with cols[idx % 3]:
-                        st.image(img, caption=f"{filename} ({img.size[0]}x{img.size[1]})", use_container_width=True)
+                        st.image(img, caption=f"{filename}", use_container_width=True)
     
     with img_tabs[1]:
-        st.markdown("### ✏️ Редактирование изображений")
+        st.markdown("### ✏️ Редактирование с ИИ")
         
         if not st.session_state.uploaded_images:
             st.info("💡 Загрузите изображения на вкладке 'Загрузка'")
         else:
-            # Выбор изображения для редактирования
             selected_filename = st.selectbox(
                 "Выберите изображение",
                 options=list(st.session_state.uploaded_images.keys()),
@@ -3846,32 +3341,27 @@ def render_images_tab(api_key: str):
                 with col1:
                     st.markdown("#### Оригинал")
                     st.image(original_image, use_container_width=True)
-                    st.caption(f"📐 {original_image.size[0]}×{original_image.size[1]} | 💾 {original_image.size[0] * original_image.size[1] * 3 / 1024:.1f} KB")
                 
                 with col2:
-                    st.markdown("#### Операции")
+                    st.markdown("#### 🎨 Операции с ИИ")
                     
                     operation = st.selectbox(
                         "Выберите операцию",
-                        options=[op.value for op in ImageEditOperation],
-                        format_func=lambda x: {
-                            'remove_background': '🎨 Удалить фон',
-                            'remove_watermark': '💧 Удалить водяной знак',
-                            'resize': '📐 Изменить размер',
-                            'crop': '✂️ Обрезать',
-                            'rotate': '🔄 Повернуть',
-                            'enhance': '✨ Улучшить качество',
-                            'filter': ' Применить фильтр',
-                            'add_watermark': '💬 Добавить водяной знак',
-                            'convert_format': '📄 Конвертировать формат',
-                        }.get(x, x),
+                        options=[
+                            ('remove_background', '🎨 Удалить фон (rembg)'),
+                            ('ai_remove_watermark', '🤖 ИИ-удаление водяного знака'),
+                            ('remove_watermark', '💧 Базовое удаление водяного знака'),
+                            ('resize', '📐 Изменить размер'),
+                            ('enhance', '✨ Улучшить качество'),
+                            ('convert_format', '📄 Конвертировать формат'),
+                        ],
+                        format_func=lambda x: x[1],
                         key="image_operation"
                     )
                     
-                    # Параметры в зависимости от операции
                     params = {}
                     
-                    if operation == 'resize':
+                    if operation[0] == 'resize':
                         col_a, col_b = st.columns(2)
                         with col_a:
                             params['width'] = st.number_input("Ширина", min_value=1, value=original_image.size[0], key="img_width")
@@ -3879,71 +3369,36 @@ def render_images_tab(api_key: str):
                             params['height'] = st.number_input("Высота", min_value=1, value=original_image.size[1], key="img_height")
                         params['maintain_aspect'] = st.checkbox("Сохранить пропорции", value=True, key="img_aspect")
                     
-                    elif operation == 'rotate':
-                        params['angle'] = st.slider("Угол поворота", -180, 180, 0, key="img_rotate_angle")
-                    
-                    elif operation == 'enhance':
+                    elif operation[0] == 'enhance':
                         params['brightness'] = st.slider("Яркость", 0.0, 2.0, 1.0, key="img_brightness")
                         params['contrast'] = st.slider("Контраст", 0.0, 2.0, 1.0, key="img_contrast")
-                        params['sharpness'] = st.slider("Четкость", 0.0, 2.0, 1.0, key="img_sharpness")
                     
-                    elif operation == 'filter':
-                        params['filter_type'] = st.selectbox(
-                            "Фильтр",
-                            options=['blur', 'sharpen', 'edge_enhance', 'contour', 'emboss', 'smooth', 'detail'],
-                            format_func=lambda x: {
-                                'blur': 'Размытие',
-                                'sharpen': 'Четкость',
-                                'edge_enhance': 'Усиление краев',
-                                'contour': 'Контуры',
-                                'emboss': 'Тиснение',
-                                'smooth': 'Сглаживание',
-                                'detail': 'Детализация',
-                            }.get(x, x),
-                            key="img_filter"
+                    elif operation[0] == 'ai_remove_watermark':
+                        params['description'] = st.text_area(
+                            "Описание водяного знака:",
+                            value="Удали водяной знак, сохранив основное изображение",
+                            key="wm_desc",
+                            help="Опишите где и как выглядит водяной знак для лучшего результата"
                         )
                     
-                    elif operation == 'add_watermark':
-                        params['text'] = st.text_input("Текст", value="Watermark", key="img_wm_text")
-                        params['position'] = st.selectbox(
-                            "Позиция",
-                            options=['top-left', 'top-right', 'bottom-left', 'bottom-right'],
-                            format_func=lambda x: {
-                                'top-left': 'Верхний левый',
-                                'top-right': 'Верхний правый',
-                                'bottom-left': 'Нижний левый',
-                                'bottom-right': 'Нижний правый',
-                            }.get(x, x),
-                            key="img_wm_pos"
-                        )
-                        params['font_size'] = st.slider("Размер шрифта", 10, 100, 40, key="img_wm_size")
-                        params['opacity'] = st.slider("Прозрачность", 0, 255, 128, key="img_wm_opacity")
-                    
-                    elif operation == 'convert_format':
-                        params['format'] = st.selectbox(
-                            "Формат",
-                            options=['PNG', 'JPEG', 'WEBP', 'BMP'],
-                            key="img_format"
-                        )
-                    
-                    # Кнопка применения
                     if st.button("🚀 Применить", type="primary", use_container_width=True):
                         try:
-                            with st.spinner("Обработка..."):
+                            with st.spinner("Обработка ИИ..."):
                                 processed = image_manager._apply_operation(
                                     original_image, 
-                                    ImageEditOperation(operation), 
-                                    params
+                                    ImageEditOperation(operation[0]), 
+                                    params,
+                                    api_key
                                 )
                                 
-                                st.session_state.processed_images[f"processed_{selected_filename}"] = processed
+                                result_key = f"processed_{selected_filename}"
+                                st.session_state.processed_images[result_key] = processed
                                 
                                 st.success("✅ Обработано!")
                                 st.image(processed, caption="Результат", use_container_width=True)
                                 
-                                # Кнопка сохранения
                                 if st.button("💾 Сохранить результат", key=f"save_img_{selected_filename}"):
-                                    save_path = IMAGES_DIR / f"processed_{selected_filename}"
+                                    save_path = IMAGES_DIR / result_key
                                     processed.save(save_path)
                                     st.success(f"✅ Сохранено в {save_path}")
                                     
@@ -3951,43 +3406,33 @@ def render_images_tab(api_key: str):
                             st.error(f"❌ Ошибка: {e}")
     
     with img_tabs[2]:
-        st.markdown("### 🎨 Массовая обработка изображений")
+        st.markdown("### 🎨 Массовая обработка")
         
         if not st.session_state.uploaded_images:
-            st.info("💡 Загрузите изображения на вкладке 'Загрузка'")
+            st.info("💡 Загрузите изображения")
         else:
-            st.markdown(f"📊 Доступно изображений: {len(st.session_state.uploaded_images)}")
+            st.markdown(f"📊 Доступно: {len(st.session_state.uploaded_images)}")
             
             batch_operation = st.selectbox(
-                "Операция для всех изображений",
-                options=[op.value for op in ImageEditOperation],
-                format_func=lambda x: {
-                    'remove_background': '🎨 Удалить фон',
-                    'remove_watermark': '💧 Удалить водяной знак',
-                    'resize': '📐 Изменить размер',
-                    'enhance': '✨ Улучшить качество',
-                    'convert_format': '📄 Конвертировать формат',
-                }.get(x, x),
+                "Операция для всех",
+                options=[
+                    ('remove_background', '🎨 Удалить фон'),
+                    ('remove_watermark', '💧 Удалить водяной знак'),
+                    ('resize', '📐 Изменить размер'),
+                    ('enhance', '✨ Улучшить'),
+                ],
+                format_func=lambda x: x[1],
                 key="batch_operation"
             )
             
-            # Параметры для массовой обработки
             batch_params = {}
-            
-            if batch_operation == 'resize':
+            if batch_operation[0] == 'resize':
                 col_a, col_b = st.columns(2)
                 with col_a:
                     batch_params['width'] = st.number_input("Ширина", min_value=1, value=800, key="batch_width")
                 with col_b:
                     batch_params['height'] = st.number_input("Высота", min_value=1, value=600, key="batch_height")
-                batch_params['maintain_aspect'] = st.checkbox("Сохранить пропорции", value=True, key="batch_aspect")
-            
-            elif batch_operation == 'enhance':
-                batch_params['brightness'] = st.slider("Яркость", 0.0, 2.0, 1.0, key="batch_brightness")
-                batch_params['contrast'] = st.slider("Контраст", 0.0, 2.0, 1.0, key="batch_contrast")
-            
-            elif batch_operation == 'convert_format':
-                batch_params['format'] = st.selectbox("Формат", options=['PNG', 'JPEG', 'WEBP'], key="batch_format")
+                batch_params['maintain_aspect'] = st.checkbox("Пропорции", value=True, key="batch_aspect")
             
             if st.button("🚀 Обработать все", type="primary", use_container_width=True):
                 progress_bar = st.progress(0)
@@ -4001,12 +3446,12 @@ def render_images_tab(api_key: str):
                 
                 results = image_manager.process_batch(
                     images_list,
-                    ImageEditOperation(batch_operation),
+                    ImageEditOperation(batch_operation[0]),
                     batch_params,
+                    api_key,
                     update_progress
                 )
                 
-                # Сохраняем результаты
                 for filename, processed_img in results:
                     if processed_img is not None:
                         st.session_state.processed_images[f"batch_{filename}"] = processed_img
@@ -4015,7 +3460,7 @@ def render_images_tab(api_key: str):
                 status_text.empty()
                 st.success(f"✅ Обработано {len(results)} изображений")
                 
-                if st.button("💾 Сохранить все результаты"):
+                if st.button("💾 Сохранить все"):
                     saved_count = 0
                     for filename, img in st.session_state.processed_images.items():
                         if img is not None:
@@ -4025,14 +3470,13 @@ def render_images_tab(api_key: str):
                     st.success(f"✅ Сохранено {saved_count} файлов в {IMAGES_DIR}")
     
     with img_tabs[3]:
-        st.markdown("### 💾 Сохранённые результаты")
+        st.markdown("### 💾 Результаты")
         
         if not st.session_state.processed_images:
             st.info("💡 Нет обработанных изображений")
         else:
-            st.markdown(f"📊 Всего обработано: {len(st.session_state.processed_images)}")
+            st.markdown(f"📊 Всего: {len(st.session_state.processed_images)}")
             
-            # Сетка для отображения
             cols = st.columns(3)
             
             for idx, (filename, img) in enumerate(st.session_state.processed_images.items()):
@@ -4042,7 +3486,7 @@ def render_images_tab(api_key: str):
                     col_save, col_dl, col_del = st.columns(3)
                     
                     with col_save:
-                        if st.button("💾", key=f"save_res_{idx}", help="Сохранить"):
+                        if st.button("💾", key=f"save_res_{idx}"):
                             save_path = IMAGES_DIR / filename
                             img.save(save_path)
                             st.success("✅")
@@ -4053,11 +3497,10 @@ def render_images_tab(api_key: str):
                         st.download_button("📥", img_bytes, filename, "image/png", key=f"dl_res_{idx}")
                     
                     with col_del:
-                        if st.button("🗑️", key=f"del_res_{idx}", help="Удалить"):
+                        if st.button("🗑️", key=f"del_res_{idx}"):
                             del st.session_state.processed_images[filename]
                             st.rerun()
             
-            # Кнопка сохранения всех
             if st.button("💾 Сохранить все в папку", use_container_width=True):
                 saved_count = 0
                 for filename, img in st.session_state.processed_images.items():
@@ -4068,7 +3511,7 @@ def render_images_tab(api_key: str):
                 st.success(f"✅ Сохранено {saved_count} файлов в {IMAGES_DIR}")
     
     with img_tabs[4]:
-        st.markdown("### 📊 Статистика обработки")
+        st.markdown("### 📊 Статистика")
         
         col1, col2, col3, col4 = st.columns(4)
         
@@ -4078,11 +3521,10 @@ def render_images_tab(api_key: str):
             st.metric("Обработано", len(st.session_state.processed_images))
         with col3:
             total_size = sum(img.size[0] * img.size[1] * 3 for img in st.session_state.uploaded_images.values())
-            st.metric("Общий размер", f"{total_size / (1024*1024):.1f} MB")
+            st.metric("Размер", f"{total_size / (1024*1024):.1f} MB")
         with col4:
             st.metric("Сохранено", len(list(IMAGES_DIR.glob("*"))) if IMAGES_DIR.exists() else 0)
         
-        # График по форматам
         if st.session_state.uploaded_images:
             formats_count = {}
             for filename in st.session_state.uploaded_images.keys():
@@ -4094,7 +3536,7 @@ def render_images_tab(api_key: str):
                 for fmt, count in formats_count.items()
             ])
             
-            fig = px.pie(df_formats, values='Количество', names='Формат', title="Распределение по форматам")
+            fig = px.pie(df_formats, values='Количество', names='Формат', title="Форматы")
             st.plotly_chart(fig, use_container_width=True)
 
 
@@ -4112,104 +3554,44 @@ def render_help_tab():
     
     ---
     
-    ## 💬 Новый чат-интерфейс
+    ## 💬 Чат-интерфейс
     
-    🆕 Обновления диалога:
+    🆕 Обновления:
     - ✅ **Поле ввода всегда сверху** - как в современных мессенджерах
-    - ✅ **Автоочистка** - поле очищается после отправки сообщения
-    - ✅ **Цветовое оформление** - ваши сообщения справа (фиолетовые), ответы агента слева
-    - ✅ **Поддержка голоса** - загрузка аудио и озвучка ответов
+    - ✅ **Автоочистка** - поле очищается после отправки
+    - ✅ **Цветовое оформление** - ваши сообщения справа, ответы агента слева
     
     ---
     
-    ## 🖼️ Работа с изображениями
+    ## 🖼️ ИИ-обработка изображений
     
     🆕 Новые возможности:
-    - 📥 **Массовая загрузка** - до 10,000+ изображений одновременно
-    - ✏️ **Редактирование** - изменение размера, поворот, обрезка, фильтры
-    - 🎨 **Удаление фона** - автоматическое удаление фона с помощью ИИ
-    - 💧 **Удаление водяных знаков** - базовое удаление водяных знаков
-    - 💬 **Добавление текста** - наложение водяных знаков и надписей
-    - 🎨 **Улучшение качества** - яркость, контраст, четкость
-    - 💾 **Сохранение** - локальное сохранение результатов в папке
+    - 📥 **Массовая загрузка** - до 10,000+ изображений
+    - 🤖 **ИИ-удаление водяных знаков** - через Vision API с анализом контекста
+    - 🎨 **Удаление фона** - автоматическое через rembg
+    - ✨ **Улучшение качества** - яркость, контраст, четкость
+    - 💾 **Локальное сохранение** - результаты в папке .workflow_data/processed_images
     
-    ### Примеры использования:
-    ```
-    • Обработка фотографий товаров для интернет-магазина
-    • Удаление фона с портретных фото
-    • Массовое изменение размера изображений
-    • Добавление водяных знаков на фото
-    • Улучшение качества старых фотографий
-    ```
+    ### Как работает ИИ-удаление водяных знаков:
+    1. Изображение отправляется в ИИ с описанием задачи
+    2. ИИ анализирует изображение и определяет положение водяного знака
+    3. Возвращается стратегия удаления с координатами
+    4. Применяется инпейнтинг (восстановление) только к нужной области
+    5. Результат сохраняется с максимальным качеством
     
-    ---
-    
-    ## 🗂 Редактирование таблиц
-    
-    🆕 Новые возможности работы с таблицами:
-    - ✏️ **Полноценный редактор**: изменяйте данные прямо в интерфейсе
-    - 💾 **Автосохранение**: изменения сохраняются автоматически
-    - 🗑️ **Удаление**: удаляйте ненужные таблицы одним кликом
-    - 📥 **Экспорт**: скачивайте результаты в Excel
-    - 🤖 **ИИ-трансформация**: описывайте изменения на русском языке
-    
-    ### Примеры ИИ-команд для таблиц:
-    ```
-    • "Удали все пустые строки и столбцы"
-    • "Добавь столбец 'Итого' = Цена * Количество"
-    • "Отсортируй по дате убывания"
-    • "Сгруппируй по категории и посчитай сумму"
-    • "Замени все пропуски на 0"
-    • "Отфильтруй строки где Статус = 'Активен'"
-    ```
+    💡 **Совет**: Для лучшего результата опишите водяной знак:
+    - "Удали логотип в правом нижнем углу"
+    - "Убери полупрозрачный текст по центру"
+    - "Удали водяной знак, не затрагивая основное изображение"
     
     ---
     
-    ## 🧠 ИИ Агенты
+    ## 🗂 Работа с таблицами
     
-    Агенты умеют:
-    - ✅ Обучаться на ваших примерах
-    - ✅ Запоминать важные факты
-    - ✅ Адаптироваться под ваш стиль
-    - ✅ Работать в workflow
-    
-    ---
-    
-    ## 📊 Работа с таблицами
-    
-    Поддерживается:
-    - 📥 Чтение/запись Google Sheets и Excel
-    - 🎨 Авто-форматирование через ИИ
-    - 📈 Создание диаграмм
-    - 🧹 Очистка и трансформация данных
-    - 📋 Сводные таблицы
-    
-    ---
-    
-    ## 🔀 Условия на русском
-    
-    Пишите естественно:
-    ```
-    если цена больше 1000 то отправить уведомление
-    если статус равно 'успех' иначе отправить ошибку
-    если текст содержит 'срочно' то отметить
-    ```
-    
-    ---
-    
-    ## 🎤 Голос
-    
-    - Загружайте аудиофайлы (WAV/MP3)
-    - Распознавание русского языка
-    - Озвучка ответов агента
-    
-    ---
-    
-    ## 📱 Мобильная версия
-    
-    Интерфейс адаптируется под экраны:
-    - < 768px: одноколоночный режим
-    - ≥ 769px: двухколоночный режим
+    ✅ Исправлена ошибка `sheet_names` в write_excel
+    - ✏️ Редактирование данных в интерфейсе
+    - 💾 Автосохранение изменений
+    - 🤖 ИИ-трансформации на русском языке
     
     ---
     
@@ -4231,7 +3613,7 @@ def render_help_tab():
     
     ---
     
-    *Workflow Builder Pro v9.2 • Монопоточная версия • © 2026*
+    *Workflow Builder Pro v9.3 • Монопоточная версия • © 2026*
     """)
 
 
