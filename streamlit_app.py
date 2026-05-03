@@ -1,12 +1,14 @@
 """
 ================================================================================
-WORKFLOW BUILDER PRO v9.1 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
-Обучаемые ИИ-агенты | Расширенная работа с таблицами | Голосовой ввод | Мобильная адаптация
+WORKFLOW BUILDER PRO v9.2 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
+Обучаемые ИИ-агенты | Расширенная работа с таблицами | Голосовой ввод | 
+Работа с изображениями | Мобильная адаптация
 ================================================================================
 
 Описание:
     Платформа для создания автоматизированных рабочих процессов с обучаемыми 
-    ИИ-агентами, поддержкой русского языка и интеграцией с таблицами.
+    ИИ-агентами, поддержкой русского языка, интеграцией с таблицами и 
+    продвинутым редактором изображений с ИИ.
 
 Особенности:
     • Монопоточная архитектура (без asyncio/multiprocessing)
@@ -16,14 +18,20 @@ WORKFLOW BUILDER PRO v9.1 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
     • Голосовой ввод/вывод на русском языке
     • Парсер условий на естественном русском языке
     • Мобильная адаптация интерфейса
-    • 🆕 Чат-интерфейс как у AI (сообщения сверху, автоочистка ввода)
+    • 🆕 Чат-интерфейс с полем ввода сверху
     • 🆕 Редактирование таблиц с сохранением/удалением результатов
+    • 🆕 Массовая работа с изображениями (10,000+ файлов)
+    • 🆕 ИИ-редактирование изображений (удаление фона, водяных знаков)
+    • 🆕 Локальное сохранение результатов обработки изображений
 
 Зависимости:
-    pip install streamlit pandas openpyxl openai plotly requests gspread google-auth SpeechRecognition gTTS
+    pip install streamlit pandas openpyxl openai plotly requests pillow rembg numpy
+    
+    Для расширенной работы с изображениями:
+    pip install opencv-python-headless torch torchvision
 
 Автор: Workflow Builder Team
-Версия: 9.1.0
+Версия: 9.2.0
 Дата: 2026
 Лицензия: MIT
 ================================================================================
@@ -51,6 +59,58 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+import shutil
+
+# Работа с изображениями
+try:
+    from PIL import Image, ImageFilter, ImageEnhance, ImageOps, ImageDraw, ImageFont
+    from rembg import remove
+    import numpy as np
+    IMAGE_SUPPORT = True
+except ImportError:
+    IMAGE_SUPPORT = False
+    Image = None
+    remove = None
+    np = None
+
+# Библиотеки для работы с таблицами
+try:
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, NamedStyle
+    from openpyxl.utils import get_column_letter, column_index_from_string
+    from openpyxl.chart import BarChart, LineChart, PieChart, Reference, Series
+    from openpyxl.worksheet.datavalidation import DataValidation
+    EXCEL_SUPPORT = True
+except ImportError:
+    EXCEL_SUPPORT = False
+    openpyxl = None
+
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+    GSHEETS_SUPPORT = True
+except ImportError:
+    GSHEETS_SUPPORT = False
+    gspread = None
+
+# Голосовые библиотеки
+try:
+    import speech_recognition as sr
+    from gtts import gTTS
+    VOICE_SUPPORT = True
+except ImportError:
+    VOICE_SUPPORT = False
+    sr = None
+    gTTS = None
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
+
 
 # ============================================================================
 # АВТОСОХРАНЕНИЕ ДАННЫХ (без ручного экспорта/импорта)
@@ -58,11 +118,16 @@ from pathlib import Path
 DATA_DIR = Path(__file__).parent / ".workflow_data"
 DATA_DIR.mkdir(exist_ok=True)
 
+# Папка для сохраненных изображений
+IMAGES_DIR = DATA_DIR / "processed_images"
+IMAGES_DIR.mkdir(exist_ok=True)
+
 WORKFLOW_FILE = DATA_DIR / "workflow.json"
 AGENTS_FILE = DATA_DIR / "agents.json"
 MESSAGES_FILE = DATA_DIR / "messages.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 TABLES_FILE = DATA_DIR / "tables.json"
+IMAGES_METADATA_FILE = DATA_DIR / "images_metadata.json"
 
 
 def save_workflow_auto(workflow: List[Dict]):
@@ -184,43 +249,24 @@ def load_tables_auto() -> Dict:
     return {}
 
 
-# Библиотеки для работы с таблицами
-try:
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Border, Side, Alignment, NamedStyle
-    from openpyxl.utils import get_column_letter, column_index_from_string
-    from openpyxl.chart import BarChart, LineChart, PieChart, Reference, Series
-    from openpyxl.worksheet.datavalidation import DataValidation
-    EXCEL_SUPPORT = True
-except ImportError:
-    EXCEL_SUPPORT = False
-    openpyxl = None
+def save_images_metadata_auto(metadata: Dict):
+    """Автосохранение метаданных изображений"""
+    try:
+        with open(IMAGES_METADATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Не удалось сохранить метаданные изображений: {e}")
 
-try:
-    import gspread
-    from google.oauth2.service_account import Credentials
-    GSHEETS_SUPPORT = True
-except ImportError:
-    GSHEETS_SUPPORT = False
-    gspread = None
 
-# Голосовые библиотеки
-try:
-    import speech_recognition as sr
-    from gtts import gTTS
-    VOICE_SUPPORT = True
-except ImportError:
-    VOICE_SUPPORT = False
-    sr = None
-    gTTS = None
-
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
-)
-logger = logging.getLogger(__name__)
+def load_images_metadata_auto() -> Dict:
+    """Автозагрузка метаданных изображений"""
+    if IMAGES_METADATA_FILE.exists():
+        try:
+            with open(IMAGES_METADATA_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить метаданные изображений: {e}")
+    return {}
 
 
 # ============================================================================
@@ -231,12 +277,12 @@ class AppConfig:
     """Глобальная конфигурация приложения"""
     APP_TITLE: str = "Workflow Builder Pro – Голосовой помощник"
     APP_ICON: str = "🧠"
-    APP_VERSION: str = "9.1.0"
+    APP_VERSION: str = "9.2.0"
     
     # API настройки
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     DEEPSEEK_MODEL: str = "deepseek-chat"
-    API_TIMEOUT: int = 60
+    API_TIMEOUT: int = 120
     MAX_TOKENS: int = 4096
     
     # Настройки таблиц
@@ -244,6 +290,11 @@ class AppConfig:
     MAX_ROWS_EXCEL: int = 100000
     SUPPORTED_EXCEL_FORMATS: Tuple[str, ...] = ("xlsx", "xlsm", "xls")
     DEFAULT_SHEET_NAME: str = "Sheet1"
+    
+    # Настройки изображений
+    MAX_IMAGE_UPLOAD: int = 10000
+    SUPPORTED_IMAGE_FORMATS: Tuple[str, ...] = ("jpg", "jpeg", "png", "webp", "bmp", "gif")
+    MAX_IMAGE_SIZE_MB: int = 50
     
     # Настройки кэширования
     CACHE_TTL_SECONDS: int = 300
@@ -329,6 +380,19 @@ def format_bytes(size: int) -> str:
     return f"{size:.1f} TB"
 
 
+def image_to_base64(image: Image.Image) -> str:
+    """Конвертирует PIL Image в base64 строку"""
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+
+def base64_to_image(base64_string: str) -> Image.Image:
+    """Конвертирует base64 строку в PIL Image"""
+    image_data = base64.b64decode(base64_string)
+    return Image.open(BytesIO(image_data))
+
+
 # ============================================================================
 # ENUMS ДЛЯ ТИПИЗАЦИИ
 # ============================================================================
@@ -387,11 +451,25 @@ class WorkflowStatus(Enum):
     PAUSED = "paused"
 
 
+class ImageEditOperation(Enum):
+    """Операции редактирования изображений"""
+    REMOVE_BACKGROUND = "remove_background"
+    REMOVE_WATERMARK = "remove_watermark"
+    RESIZE = "resize"
+    CROP = "crop"
+    ROTATE = "rotate"
+    ENHANCE = "enhance"
+    FILTER = "filter"
+    ADD_TEXT = "add_text"
+    ADD_WATERMARK = "add_watermark"
+    CONVERT_FORMAT = "convert_format"
+
+
 # ============================================================================
-# CSS СТИЛИ — БЕЛЫЙ ФОН, ЧЁРНЫЙ ТЕКСТ, ЦЕНТРИРОВАННАЯ КОРЗИНА
+# CSS СТИЛИ
 # ============================================================================
 def get_app_styles() -> str:
-    """Возвращает CSS стили с белым фоном как в сайдбаре и центрированной корзиной"""
+    """Возвращает CSS стили приложения"""
     return """
     <style>
         /* ========== БАЗОВЫЕ СТИЛИ ========== */
@@ -1035,11 +1113,12 @@ def get_app_styles() -> str:
         
         .chat-input-container {
             position: sticky;
-            bottom: 0;
+            top: 0;
             background: #ffffff;
             padding: 1rem 0;
-            border-top: 1px solid #e0e0e0;
+            border-bottom: 1px solid #e0e0e0;
             z-index: 100;
+            margin-bottom: 1rem;
         }
         
         /* ========== РЕДАКТИРУЕМЫЕ ТАБЛИЦЫ ========== */
@@ -1078,6 +1157,46 @@ def get_app_styles() -> str:
         .saved-table-card * {
             color: #000000 !important;
         }
+        
+        /* ========== КАРТОЧКИ ИЗОБРАЖЕНИЙ ========== */
+        .image-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 0.8rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin: 0.5rem;
+            text-align: center;
+        }
+        
+        .image-card img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+        }
+        
+        .image-preview-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+        }
+        
+        /* ========== ПРОГРЕСС ЗАГРУЗКИ ========== */
+        .upload-progress {
+            background: linear-gradient(135deg, #6974dc, #764ba2);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            margin: 0.5rem 0;
+            text-align: center;
+        }
     </style>
     """
 
@@ -1088,17 +1207,6 @@ def get_app_styles() -> str:
 class RussianConditionParser:
     """
     Преобразует условия на русском языке в исполняемый код.
-    
-    Поддерживает сложные конструкции:
-    - Простые сравнения: "цена больше 1000"
-    - Логические операторы: "если ... то ... иначе"
-    - Составные условия: "цена между 100 и 500 И статус равен 'активен'"
-    - Работа с полями: "{{поле}} содержит 'срочно'"
-    
-    Attributes:
-        PATTERNS: Словарь регулярных выражений для распознавания условий
-        OPERATOR_MAP: Словарь замены русских операторов на Python
-        EXAMPLES: Список примеров условий для справки
     """
     
     PATTERNS: Dict[str, str] = {
@@ -1138,15 +1246,7 @@ class RussianConditionParser:
     
     @classmethod
     def parse(cls, condition_text: str) -> Dict[str, Any]:
-        """
-        Преобразует русское условие в структурированный формат.
-        
-        Args:
-            condition_text: Условие на русском языке
-            
-        Returns:
-            Dict с полями: original, type, condition, code, examples, errors
-        """
+        """Преобразует русское условие в структурированный формат"""
         condition_text = condition_text.lower().strip()
         
         result: Dict[str, Any] = {
@@ -1161,12 +1261,10 @@ class RussianConditionParser:
             'confidence': 0.0
         }
         
-        # Обработка конструкции "если ... то ... иначе"
         if 'если' in condition_text:
             result = cls._parse_if_statement(condition_text, result)
             return result
         
-        # Поиск по паттернам
         for pattern_type, pattern in cls.PATTERNS.items():
             match = re.search(pattern, condition_text, re.IGNORECASE)
             if match:
@@ -1179,7 +1277,6 @@ class RussianConditionParser:
                 result['confidence'] = 0.9
                 break
         
-        # Если не распознано - пробуем общий парсер
         if result['code'] is None:
             result['code'], result['errors'] = cls._fallback_parse(condition_text)
             result['confidence'] = 0.5 if result['code'] else 0.0
@@ -1345,24 +1442,9 @@ class ChartConfig:
 # МЕНЕДЖЕР ДЛЯ РАБОТЫ С ТАБЛИЦАМИ
 # ============================================================================
 class TableManager:
-    """
-    Универсальный менеджер для работы с Google Sheets и Excel.
-    
-    Возможности:
-    - Чтение/запись данных с выбором диапазона
-    - Работа с несколькими листами
-    - Применение форматирования через ИИ
-    - Создание диаграмм и сводных таблиц
-    - Умная очистка и трансформация данных
-    """
+    """Универсальный менеджер для работы с Google Sheets и Excel"""
     
     def __init__(self, api_key: Optional[str] = None):
-        """
-        Инициализирует менеджер таблиц.
-        
-        Args:
-            api_key: API ключ для ИИ-функций
-        """
         self.api_key = api_key
         self._cache: Dict[str, pd.DataFrame] = {}
         self._last_operation: Optional[Dict] = None
@@ -1375,18 +1457,7 @@ class TableManager:
         range_a1: Optional[str] = None,
         use_cache: bool = True
     ) -> Optional[pd.DataFrame]:
-        """
-        Читает данные из Google Sheets.
-        
-        Args:
-            url: URL Google таблицы или ID
-            sheet_name: Имя листа (по умолчанию первый)
-            range_a1: Диапазон в A1-нотации (опционально)
-            use_cache: Использовать кэширование
-            
-        Returns:
-            DataFrame с данными или None при ошибке
-        """
+        """Читает данные из Google Sheets"""
         if '/d/' in url:
             sheet_id = url.split('/d/')[1].split('/')[0]
         else:
@@ -1435,17 +1506,7 @@ class TableManager:
         range_a1: Optional[str] = None,
         use_cache: bool = True
     ) -> Optional[pd.DataFrame]:
-        """
-        Читает данные из Excel файла.
-        
-        Args:
-            file_path: Путь к файлу или BytesIO объект
-            sheet_name: Имя или индекс листа
-            range_a1: Диапазон для чтения (поддерживается ограниченно)
-            
-        Returns:
-            DataFrame с данными
-        """
+        """Читает данные из Excel файла"""
         if not EXCEL_SUPPORT:
             raise ImportError("Установите openpyxl: pip install openpyxl")
         
@@ -1483,19 +1544,7 @@ class TableManager:
         apply_formatting: bool = True,
         formatting_rules: Optional[Dict] = None
     ) -> bool:
-        """
-        Записывает DataFrame в Excel с расширенным форматированием.
-        
-        Args:
-            df: DataFrame для записи
-            output_path: Путь для сохранения
-            sheet_name: Имя листа
-            apply_formatting: Применять авто-форматирование
-            formatting_rules: Пользовательские правила форматирования
-            
-        Returns:
-            True при успехе
-        """
+        """Записывает DataFrame в Excel с расширенным форматированием"""
         if not EXCEL_SUPPORT:
             raise ImportError("Требуется openpyxl")
         
@@ -1570,17 +1619,7 @@ class TableManager:
         chart_config: ChartConfig,
         sheet_name: str = 'Sheet1'
     ) -> bool:
-        """
-        Создаёт диаграмму в Excel файле.
-        
-        Args:
-            file_path: Путь к файлу
-            chart_config: Конфигурация диаграммы
-            sheet_name: Имя листа
-            
-        Returns:
-            True при успехе
-        """
+        """Создаёт диаграмму в Excel файле"""
         if not EXCEL_SUPPORT:
             return False
         
@@ -1618,18 +1657,7 @@ class TableManager:
         instruction: str, 
         api_key: str
     ) -> Dict[str, Any]:
-        """
-        Анализирует DataFrame через ИИ и возвращает рекомендации.
-        Исправлено: robust JSON parsing
-        
-        Args:
-            df: DataFrame для анализа
-            instruction: Инструкция на естественном языке
-            api_key: API ключ для ИИ
-            
-        Returns:
-            Dict с результатами анализа и трансформациями
-        """
+        """Анализирует DataFrame через ИИ и возвращает рекомендации"""
         if not api_key:
             return {'error': 'API ключ не указан'}
         
@@ -1684,7 +1712,7 @@ class TableManager:
             
             content = response.choices[0].message.content
             
-            # 1. Убираем markdown разметку ```json ... ```
+            # Убираем markdown разметку
             if "```json" in content:
                 content = content.split("```json", 1)[1]
                 content = content.split("```", 1)[0]
@@ -1692,16 +1720,16 @@ class TableManager:
                 content = content.split("```", 1)[1]
                 content = content.split("```", 1)[0]
             
-            # 2. Ищем JSON объект
+            # Ищем JSON объект
             json_match = re.search(r'\{[\s\S]*\}', content)
             if json_match:
                 json_str = json_match.group()
                 
-                # 3. Чистим от комментариев (иногда модели их вставляют)
+                # Чистим от комментариев
                 json_str = re.sub(r'//[^\n]*', '', json_str)
                 json_str = re.sub(r'/\*[\s\S]*?\*/', '', json_str)
                 
-                # 4. Фиксим trailing commas (запятые перед } или ])
+                # Фиксим trailing commas
                 json_str = re.sub(r',(\s*[\]}])', r'\1', json_str)
                 
                 try:
@@ -1719,18 +1747,7 @@ class TableManager:
         df: pd.DataFrame, 
         transformation_code: str
     ) -> pd.DataFrame:
-        """
-        Выполняет код трансформации над DataFrame.
-        
-        ⚠️ ВНИМАНИЕ: Используйте только с доверенным кодом!
-        
-        Args:
-            df: Исходный DataFrame
-            transformation_code: Код трансформации на Python
-            
-        Returns:
-            Преобразованный DataFrame
-        """
+        """Выполняет код трансформации над DataFrame"""
         safe_globals = {"pd": pd, "np": __import__('numpy') if 'numpy' in transformation_code else None, "df": df.copy()}
         
         try:
@@ -1742,35 +1759,337 @@ class TableManager:
 
 
 # ============================================================================
+# 🆕 МЕНЕДЖЕР ДЛЯ РАБОТЫ С ИЗОБРАЖЕНИЯМИ
+# ============================================================================
+class ImageManager:
+    """Менеджер для массовой обработки изображений с ИИ"""
+    
+    def __init__(self, api_key: Optional[str] = None):
+        self.api_key = api_key
+        self.processed_count = 0
+        self.total_count = 0
+        
+    def remove_background(self, image: Image.Image) -> Image.Image:
+        """Удаляет фон с изображения используя rembg"""
+        if not IMAGE_SUPPORT or remove is None:
+            raise ImportError("Установите rembg: pip install rembg")
+        
+        # Конвертируем в bytes
+        img_byte_arr = BytesIO()
+        image.save(img_byte_arr, format='PNG')
+        img_byte_arr.seek(0)
+        
+        # Удаляем фон
+        output = remove(img_byte_arr.read())
+        
+        # Возвращаем как Image
+        return Image.open(BytesIO(output))
+    
+    def remove_watermark_basic(self, image: Image.Image) -> Image.Image:
+        """Базовое удаление водяного знака (инпейнтинг)"""
+        if not IMAGE_SUPPORT:
+            raise ImportError("Установите PIL: pip install pillow")
+        
+        # Конвертируем в numpy array
+        img_array = np.array(image)
+        
+        # Простая эвристика: ищем полупрозрачные области (типичный водяной знак)
+        if image.mode == 'RGBA':
+            alpha = img_array[:, :, 3]
+            # Находим области с низкой прозрачностью
+            watermark_mask = (alpha < 200) & (alpha > 50)
+        else:
+            # Для RGB ищем очень светлые или очень темные области в углах
+            gray = np.mean(img_array, axis=2)
+            watermark_mask = (gray > 240) | (gray < 20)
+        
+        # Простой инпейнтинг - замена на среднее значение соседей
+        result_array = img_array.copy()
+        
+        # Заменяем пиксели водяного знака на среднее значение изображения
+        if np.any(watermark_mask):
+            avg_color = np.mean(img_array[~watermark_mask], axis=0)
+            result_array[watermark_mask] = avg_color
+        
+        return Image.fromarray(result_array.astype(np.uint8))
+    
+    def resize_image(self, image: Image.Image, width: Optional[int] = None, 
+                     height: Optional[int] = None, maintain_aspect: bool = True) -> Image.Image:
+        """Изменяет размер изображения"""
+        if width is None and height is None:
+            return image
+        
+        if maintain_aspect:
+            # Сохраняем пропорции
+            img_width, img_height = image.size
+            if width and height:
+                ratio = min(width / img_width, height / img_height)
+            elif width:
+                ratio = width / img_width
+            else:
+                ratio = height / img_height
+            
+            new_width = int(img_width * ratio)
+            new_height = int(img_height * ratio)
+        else:
+            new_width = width or image.size[0]
+            new_height = height or image.size[1]
+        
+        return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    
+    def crop_image(self, image: Image.Image, left: int, top: int, 
+                   right: int, bottom: int) -> Image.Image:
+        """Обрезает изображение"""
+        return image.crop((left, top, right, bottom))
+    
+    def rotate_image(self, image: Image.Image, angle: float, expand: bool = True) -> Image.Image:
+        """Поворачивает изображение"""
+        return image.rotate(angle, expand=expand, resample=Image.Resampling.BICUBIC)
+    
+    def enhance_image(self, image: Image.Image, brightness: float = 1.0, 
+                      contrast: float = 1.0, sharpness: float = 1.0) -> Image.Image:
+        """Улучшает изображение"""
+        if brightness != 1.0:
+            enhancer = ImageEnhance.Brightness(image)
+            image = enhancer.enhance(brightness)
+        
+        if contrast != 1.0:
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(contrast)
+        
+        if sharpness != 1.0:
+            enhancer = ImageEnhance.Sharpness(image)
+            image = enhancer.enhance(sharpness)
+        
+        return image
+    
+    def apply_filter(self, image: Image.Image, filter_type: str) -> Image.Image:
+        """Применяет фильтр к изображению"""
+        filters = {
+            'blur': ImageFilter.BLUR,
+            'sharpen': ImageFilter.SHARPEN,
+            'edge_enhance': ImageFilter.EDGE_ENHANCE,
+            'contour': ImageFilter.CONTOUR,
+            'emboss': ImageFilter.EMBOSS,
+            'smooth': ImageFilter.SMOOTH,
+            'detail': ImageFilter.DETAIL,
+        }
+        
+        if filter_type in filters:
+            return image.filter(filters[filter_type])
+        return image
+    
+    def add_text_watermark(self, image: Image.Image, text: str, position: str = "bottom-right",
+                           font_size: int = 40, opacity: int = 128, 
+                           color: Tuple[int, int, int] = (255, 255, 255)) -> Image.Image:
+        """Добавляет текстовый водяной знак"""
+        # Создаем прозрачный слой
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+        
+        txt_layer = Image.new('RGBA', image.size, (255, 255, 255, 0))
+        
+        # Пытаемся загрузить шрифт
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
+        except:
+            font = ImageFont.load_default()
+        
+        draw = ImageDraw.Draw(txt_layer)
+        
+        # Получаем размер текста
+        bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
+        # Определяем позицию
+        img_width, img_height = image.size
+        padding = 20
+        
+        if position == "top-left":
+            x, y = padding, padding
+        elif position == "top-right":
+            x, y = img_width - text_width - padding, padding
+        elif position == "bottom-left":
+            x, y = padding, img_height - text_height - padding
+        else:  # bottom-right
+            x, y = img_width - text_width - padding, img_height - text_height - padding
+        
+        # Рисуем текст
+        draw.text((x, y), text, font=font, fill=(*color, opacity))
+        
+        # Объединяем слои
+        return Image.alpha_composite(image, txt_layer)
+    
+    def convert_format(self, image: Image.Image, format: str) -> Image.Image:
+        """Конвертирует изображение в другой формат"""
+        if format.upper() in ['JPEG', 'JPG']:
+            if image.mode == 'RGBA':
+                # Создаем белый фон для JPEG
+                background = Image.new('RGB', image.size, (255, 255, 255))
+                background.paste(image, mask=image.split()[3])
+                return background
+            return image.convert('RGB')
+        return image
+    
+    def ai_edit_image(self, image: Image.Image, instruction: str) -> Dict[str, Any]:
+        """
+        Использует ИИ для редактирования изображения
+        (через OpenAI DALL-E Edit API или аналогичный сервис)
+        """
+        if not self.api_key:
+            return {'error': 'API ключ не указан'}
+        
+        try:
+            client = OpenAI(api_key=self.api_key, base_url=CONFIG.DEEPSEEK_BASE_URL)
+            
+            # Конвертируем изображение в base64
+            img_base64 = image_to_base64(image)
+            
+            # Отправляем запрос на редактирование
+            # Примечание: это пример, реальный API может отличаться
+            prompt = f"""
+Ты эксперт по редактированию изображений.
+
+Инструкция: {instruction}
+
+Предложи параметры для редактирования в формате JSON:
+{{
+    "operations": [
+        {{
+            "type": "resize|crop|enhance|filter",
+            "params": {{...}}
+        }}
+    ],
+    "description": "что будет сделано"
+}}
+"""
+            
+            response = client.chat.completions.create(
+                model=CONFIG.DEEPSEEK_MODEL,
+                messages=[
+                    {"role": "system", "content": "Ты эксперт по обработке изображений."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                timeout=CONFIG.API_TIMEOUT,
+                max_tokens=CONFIG.MAX_TOKENS
+            )
+            
+            content = response.choices[0].message.content
+            
+            # Парсим JSON
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                return json.loads(json_match.group())
+            
+            return {'error': 'Не удалось получить ответ от ИИ'}
+            
+        except Exception as e:
+            return {'error': f'Ошибка ИИ: {str(e)}'}
+    
+    def process_batch(self, images: List[Tuple[str, Image.Image]], 
+                      operation: ImageEditOperation, 
+                      params: Dict[str, Any],
+                      progress_callback: Optional[Callable] = None) -> List[Tuple[str, Image.Image]]:
+        """
+        Обрабатывает пакет изображений
+        
+        Args:
+            images: Список кортежей (имя_файла, Image)
+            operation: Тип операции
+            params: Параметры операции
+            progress_callback: Функция обратного вызова для прогресса
+            
+        Returns:
+            Список обработанных изображений
+        """
+        self.total_count = len(images)
+        self.processed_count = 0
+        results = []
+        
+        for filename, image in images:
+            try:
+                processed = self._apply_operation(image, operation, params)
+                results.append((filename, processed))
+                
+                self.processed_count += 1
+                if progress_callback:
+                    progress_callback(self.processed_count, self.total_count, filename)
+                    
+            except Exception as e:
+                logger.error(f"Ошибка обработки {filename}: {e}")
+                results.append((filename, None))
+        
+        return results
+    
+    def _apply_operation(self, image: Image.Image, operation: ImageEditOperation, 
+                         params: Dict[str, Any]) -> Image.Image:
+        """Применяет операцию к изображению"""
+        if operation == ImageEditOperation.REMOVE_BACKGROUND:
+            return self.remove_background(image)
+        
+        elif operation == ImageEditOperation.REMOVE_WATERMARK:
+            return self.remove_watermark_basic(image)
+        
+        elif operation == ImageEditOperation.RESIZE:
+            return self.resize_image(
+                image, 
+                width=params.get('width'),
+                height=params.get('height'),
+                maintain_aspect=params.get('maintain_aspect', True)
+            )
+        
+        elif operation == ImageEditOperation.CROP:
+            return self.crop_image(
+                image,
+                params.get('left', 0),
+                params.get('top', 0),
+                params.get('right', image.size[0]),
+                params.get('bottom', image.size[1])
+            )
+        
+        elif operation == ImageEditOperation.ROTATE:
+            return self.rotate_image(
+                image, 
+                params.get('angle', 0),
+                params.get('expand', True)
+            )
+        
+        elif operation == ImageEditOperation.ENHANCE:
+            return self.enhance_image(
+                image,
+                brightness=params.get('brightness', 1.0),
+                contrast=params.get('contrast', 1.0),
+                sharpness=params.get('sharpness', 1.0)
+            )
+        
+        elif operation == ImageEditOperation.FILTER:
+            return self.apply_filter(image, params.get('filter_type', 'blur'))
+        
+        elif operation == ImageEditOperation.ADD_WATERMARK:
+            return self.add_text_watermark(
+                image,
+                text=params.get('text', 'Watermark'),
+                position=params.get('position', 'bottom-right'),
+                font_size=params.get('font_size', 40),
+                opacity=params.get('opacity', 128),
+                color=tuple(params.get('color', [255, 255, 255]))
+            )
+        
+        elif operation == ImageEditOperation.CONVERT_FORMAT:
+            return self.convert_format(image, params.get('format', 'PNG'))
+        
+        return image
+
+
+# ============================================================================
 # КЛАСС ИИ АГЕНТА
 # ============================================================================
 class AIAgent:
-    """
-    Класс для создания и обучения ИИ агентов.
-    
-    Атрибуты:
-        id: Уникальный идентификатор агента
-        name: Имя агента
-        role: Роль/специализация агента
-        system_prompt: Системный промпт для настройки поведения
-        created_at: Дата создания
-        training_examples: Примеры для обучения
-        memory: Долговременная память агента
-        conversation_history: История диалогов
-        knowledge_base: База знаний
-        stats: Статистика использования
-    """
+    """Класс для создания и обучения ИИ агентов"""
     
     def __init__(self, name: str, role: str, system_prompt: str, agent_id: Optional[str] = None):
-        """
-        Инициализирует нового ИИ агента.
-        
-        Args:
-            name: Имя агента
-            role: Роль/специализация
-            system_prompt: Системный промпт
-            agent_id: Опциональный внешний ID
-        """
         self.id = agent_id or hashlib.md5(f"{name}{datetime.now().isoformat()}".encode()).hexdigest()[:8]
         self.name = name
         self.role = role
@@ -1789,17 +2108,7 @@ class AIAgent:
         }
     
     def add_training_example(self, user_input: str, expected_output: str, context: str = "") -> Dict:
-        """
-        Добавляет пример для обучения агента.
-        
-        Args:
-            user_input: Входной запрос пользователя
-            expected_output: Ожидаемый ответ агента
-            context: Дополнительный контекст
-            
-        Returns:
-            Созданный пример обучения
-        """
+        """Добавляет пример для обучения агента"""
         example = {
             'id': len(self.training_examples) + 1,
             'user_input': user_input,
@@ -1814,17 +2123,7 @@ class AIAgent:
         return example
     
     def add_to_memory(self, key: str, value: Any, importance: str = "normal") -> Dict:
-        """
-        Добавляет факт в память агента.
-        
-        Args:
-            key: Ключ для доступа к значению
-            value: Значение для запоминания
-            importance: Уровень важности (low/normal/high)
-            
-        Returns:
-            Созданный элемент памяти
-        """
+        """Добавляет факт в память агента"""
         memory_item = {
             'key': key,
             'value': value,
@@ -1847,15 +2146,7 @@ class AIAgent:
         return memory_item
     
     def get_from_memory(self, key: str) -> Any:
-        """
-        Получает значение из памяти по ключу.
-        
-        Args:
-            key: Ключ для поиска
-            
-        Returns:
-            Значение из памяти или None
-        """
+        """Получает значение из памяти по ключу"""
         for mem in self.memory:
             if mem['key'] == key:
                 mem['access_count'] += 1
@@ -1863,14 +2154,7 @@ class AIAgent:
         return None
     
     def add_conversation(self, user_message: str, agent_response: str, feedback: Optional[str] = None):
-        """
-        Добавляет диалог в историю.
-        
-        Args:
-            user_message: Сообщение пользователя
-            agent_response: Ответ агента
-            feedback: Обратная связь (positive/negative)
-        """
+        """Добавляет диалог в историю"""
         conversation = {
             'user': user_message,
             'agent': agent_response,
@@ -1906,17 +2190,7 @@ class AIAgent:
         api_key: str, 
         use_training: bool = True
     ) -> str:
-        """
-        Генерирует ответ агента на запрос пользователя.
-        
-        Args:
-            user_input: Запрос пользователя
-            api_key: API ключ DeepSeek
-            use_training: Использовать ли примеры обучения
-            
-        Returns:
-            Текст ответа агента
-        """
+        """Генерирует ответ агента на запрос пользователя"""
         if not api_key:
             return "❌ API ключ не указан. Получите бесплатно на platform.deepseek.com"
         
@@ -2016,7 +2290,6 @@ class AgentManager:
     """Управляет коллекцией ИИ агентов"""
     
     def __init__(self):
-        """Инициализирует менеджер агентов"""
         self.agents: Dict[str, AIAgent] = {}
         self.current_agent_id: Optional[str] = None
         self.load_agents()
@@ -2080,17 +2353,7 @@ class AgentManager:
         save_agents_auto(st.session_state.agents)
     
     def add_agent(self, name: str, role: str, system_prompt: str) -> AIAgent:
-        """
-        Создаёт и добавляет нового агента.
-        
-        Args:
-            name: Имя агента
-            role: Роль агента
-            system_prompt: Системный промпт
-            
-        Returns:
-            Созданный агент
-        """
+        """Создаёт и добавляет нового агента"""
         agent = AIAgent(name, role, system_prompt)
         self.agents[agent.id] = agent
         self.save_agents()
@@ -2124,15 +2387,7 @@ class AgentManager:
         return ""
     
     def import_agent(self, agent_json: str) -> bool:
-        """
-        Импортирует агента из JSON.
-        
-        Args:
-            agent_json: JSON строка с данными агента
-            
-        Returns:
-            True при успешном импорте
-        """
+        """Импортирует агента из JSON"""
         try:
             data = json.loads(agent_json)
             agent = AIAgent.from_dict(data)
@@ -2153,16 +2408,7 @@ class AIWorkflowGenerator:
     
     @staticmethod
     def generate(description: str, api_key: str) -> List[Dict]:
-        """
-        Генерирует workflow из описания.
-        
-        Args:
-            description: Описание workflow на русском
-            api_key: API ключ DeepSeek
-            
-        Returns:
-            Список узлов workflow
-        """
+        """Генерирует workflow из описания"""
         if not api_key:
             return []
         
@@ -2234,15 +2480,6 @@ class WorkflowExecutor:
         agent_manager: Optional[AgentManager] = None,
         table_manager: Optional[TableManager] = None
     ):
-        """
-        Инициализирует исполнитель workflow.
-        
-        Args:
-            workflow: Список узлов workflow
-            api_key: API ключ для ИИ
-            agent_manager: Менеджер агентов
-            table_manager: Менеджер таблиц
-        """
         self.workflow = workflow
         self.api_key = api_key
         self.agent_manager = agent_manager
@@ -2253,15 +2490,7 @@ class WorkflowExecutor:
         self.start_time: Optional[float] = None
     
     def execute(self, progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
-        """
-        Выполняет весь workflow.
-        
-        Args:
-            progress_callback: Функция для обновления прогресса
-            
-        Returns:
-            Результат выполнения
-        """
+        """Выполняет весь workflow"""
         self.start_time = time.time()
         
         while self.current_node_index < len(self.workflow):
@@ -2444,7 +2673,6 @@ class WorkflowExecutor:
         """Оценивает условие"""
         condition_text = condition_text.lower()
         
-        # Простые эвристики для демонстрации
         if 'больше' in condition_text:
             match = re.search(r'(\w+)\s+больше\s+(\d+)', condition_text)
             if match:
@@ -2638,15 +2866,7 @@ class WorkflowExecutor:
 # ГОЛОСОВЫЕ ФУНКЦИИ
 # ============================================================================
 def recognize_speech_from_audio(audio_bytes: bytes) -> Optional[str]:
-    """
-    Распознавание русской речи из аудиобайтов.
-    
-    Args:
-        audio_bytes: Аудиоданные в формате WAV/MP3
-        
-    Returns:
-        Распознанный текст или None
-    """
+    """Распознавание русской речи из аудиобайтов"""
     if not VOICE_SUPPORT or sr is None:
         return None
     
@@ -2662,15 +2882,7 @@ def recognize_speech_from_audio(audio_bytes: bytes) -> Optional[str]:
 
 
 def text_to_speech_mp3(text: str) -> Optional[bytes]:
-    """
-    Генерация MP3 из текста (русский язык).
-    
-    Args:
-        text: Текст для озвучки
-        
-    Returns:
-        Байты MP3 файла или None
-    """
+    """Генерация MP3 из текста (русский язык)"""
     if not VOICE_SUPPORT or gTTS is None:
         return None
     
@@ -2705,9 +2917,13 @@ def initialize_session_state():
         'current_df': None,
         'excel_loaded': False,
         'data_loaded': False,
-        'saved_tables': {},  # 🆕 Хранилище сохранённых таблиц
-        'table_edit_mode': False,  # 🆕 Режим редактирования таблицы
-        'editing_table_id': None,  # 🆕 ID редактируемой таблицы
+        'saved_tables': {},
+        'table_edit_mode': False,
+        'editing_table_id': None,
+        'image_manager': None,
+        'uploaded_images': {},  # Dict[filename, Image]
+        'processed_images': {},  # Dict[filename, Image]
+        'image_batch_progress': 0,
     }
     
     for key, value in defaults.items():
@@ -2784,7 +3000,7 @@ def main():
     st.markdown(f"""
     <div class="main-header">
         <h1>{CONFIG.APP_ICON} WORKFLOW BUILDER PRO v{CONFIG.APP_VERSION}</h1>
-        <p>Обучаемые ИИ агенты | Таблицы | Голос | Мобильная версия</p>
+        <p>Обучаемые ИИ агенты | Таблицы | Изображения | Голос | Мобильная версия</p>
         <span class="version-badge">Монопоточная версия • {datetime.now().strftime('%Y')}</span>
     </div>
     """, unsafe_allow_html=True)
@@ -2875,10 +3091,15 @@ def main():
                 st.rerun()
             
             if st.button("⚠️ Сбросить ВСЁ", use_container_width=True, type="secondary"):
-                for f in [WORKFLOW_FILE, AGENTS_FILE, MESSAGES_FILE, HISTORY_FILE, TABLES_FILE]:
+                for f in [WORKFLOW_FILE, AGENTS_FILE, MESSAGES_FILE, HISTORY_FILE, TABLES_FILE, IMAGES_METADATA_FILE]:
                     if f.exists():
                         f.unlink()
-                for key in ['workflow', 'agent_messages', 'history', 'agents', 'data_loaded', 'saved_tables']:
+                # Очищаем папку с изображениями
+                if IMAGES_DIR.exists():
+                    shutil.rmtree(IMAGES_DIR)
+                    IMAGES_DIR.mkdir(exist_ok=True)
+                for key in ['workflow', 'agent_messages', 'history', 'agents', 'data_loaded', 
+                           'saved_tables', 'uploaded_images', 'processed_images']:
                     if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()
@@ -2892,6 +3113,12 @@ def main():
             st.metric("Обучений", current_agent.stats['total_trainings'])
             st.metric("Диалогов", current_agent.stats['total_conversations'])
         
+        # Статистика изображений
+        st.markdown("---")
+        st.markdown("## 🖼️ Изображения")
+        st.metric("Загружено", len(st.session_state.uploaded_images))
+        st.metric("Обработано", len(st.session_state.processed_images))
+        
         st.markdown("---")
         
         if st.button("🗑️ Очистить workflow", use_container_width=True):
@@ -2902,10 +3129,14 @@ def main():
     if st.session_state.table_manager is None:
         st.session_state.table_manager = TableManager(api_key)
     
+    # Менеджер изображений
+    if st.session_state.image_manager is None:
+        st.session_state.image_manager = ImageManager(api_key)
+    
     # Основные вкладки
     tabs = st.tabs([
         "💬 Диалог", "📚 Обучение", "🧠 Память", "📊 Аналитика",
-        "🤖 Workflow", "🔀 Условия", "🗂 Таблицы+ИИ", "📖 Справка"
+        "🤖 Workflow", "🔀 Условия", "🗂 Таблицы+ИИ", "🖼️ Изображения", "📖 Справка"
     ])
     
     with tabs[0]:
@@ -2930,14 +3161,18 @@ def main():
         render_tables_tab(api_key)
     
     with tabs[7]:
+        render_images_tab(api_key)
+    
+    with tabs[8]:
         render_help_tab()
 
 
 def render_chat_tab(agent_manager: AgentManager, api_key: str):
     """
-    🆕 Рендерит вкладку диалога с агентом в стиле чат-интерфейса
-    - Сообщения всегда сверху
-    - Поле ввода с автоочисткой после отправки
+    🆕 Рендерит вкладку диалога с агентом
+    - Поле ввода ВСЕГДА СВЕРХУ
+    - История сообщений снизу
+    - Автоочистка поля после отправки
     """
     current_agent = agent_manager.get_current_agent()
     
@@ -2948,25 +3183,12 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
     st.subheader(f"💬 {current_agent.name}")
     st.caption(f"Роль: {current_agent.role}")
     
-    # 🆕 Контейнер чата с прокруткой - всегда сверху
-    chat_container = st.container()
-    with chat_container:
-        # Отображение истории сообщений
-        for msg in st.session_state.agent_messages:
-            if msg['role'] == 'user':
-                st.markdown(f'<div class="chat-message-user"><strong>👤 Вы:</strong><br>{msg["content"]}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown(f'<div class="chat-message-agent"><strong>🤖 {current_agent.name}:</strong><br>{msg["content"]}</div>', unsafe_allow_html=True)
-        
-        # 🆕 Якорь для автоматической прокрутки вниз
-        st.markdown('<div id="chat-bottom"></div>', unsafe_allow_html=True)
-    
-    # 🆕 Поле ввода - зафиксировано снизу (визуально)
+    # 🆕 ПОЛЕ ВВОДА СНАЧАЛА (всегда сверху!)
     st.markdown('<div class="chat-input-container">', unsafe_allow_html=True)
     
     user_input = st.text_area(
         "✏️ Напишите сообщение...", 
-        height=60, 
+        height=80, 
         key="chat_input",
         placeholder="Введите ваш вопрос...",
         label_visibility="collapsed"
@@ -2975,14 +3197,15 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
     col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
     
     with col1:
-        use_training = st.checkbox("📚 Обуч.", value=True, key="chat_use_training", help="Использовать примеры обучения")
+        use_training = st.checkbox("📚 Обуч.", value=True, key="chat_use_training", 
+                                  help="Использовать примеры обучения")
     
     with col2:
         if VOICE_SUPPORT and st.button("🎤", use_container_width=True, help="Голосовой ввод"):
             st.session_state.voice_show_upload = True
     
     with col3:
-        if st.button("🔊", use_container_width=True, help="Озвучить ответ"):
+        if st.button("🔊", use_container_width=True, help="Озвучить последний ответ"):
             if st.session_state.agent_messages and st.session_state.agent_messages[-1]['role'] == 'agent':
                 audio = text_to_speech_mp3(st.session_state.agent_messages[-1]['content'])
                 if audio:
@@ -2995,7 +3218,7 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
                 # Добавляем сообщение пользователя
                 st.session_state.agent_messages.append({'role': 'user', 'content': user_input.strip()})
                 
-                # 🆕 Немедленно очищаем поле ввода
+                # 🆕 НЕМЕДЛЕННО очищаем поле ввода
                 st.session_state.chat_input = ""
                 
                 # Генерируем ответ агента
@@ -3009,12 +3232,28 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
                 current_agent.add_conversation(user_input.strip(), response)
                 agent_manager.save_agents()
                 
-                # 🆕 Принудительный ререндер для обновления чата
+                # 🆕 Принудительный ререндер
                 st.rerun()
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # 🆕 Голосовой ввод (если активирован)
+    # 🆕 ИСТОРИЯ СООБЩЕНИЙ (после поля ввода)
+    st.markdown("### 📜 История диалога")
+    
+    chat_container = st.container()
+    with chat_container:
+        if not st.session_state.agent_messages:
+            st.info("💬 Начните диалог, введя сообщение выше")
+        else:
+            for msg in st.session_state.agent_messages:
+                if msg['role'] == 'user':
+                    st.markdown(f'<div class="chat-message-user"><strong>👤 Вы:</strong><br>{msg["content"]}</div>', 
+                               unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="chat-message-agent"><strong>🤖 {current_agent.name}:</strong><br>{msg["content"]}</div>', 
+                               unsafe_allow_html=True)
+    
+    # Голосовой ввод (если активирован)
     if st.session_state.voice_show_upload:
         with st.expander("🎤 Голосовой ввод", expanded=True):
             st.info("Загрузите аудиофайл (WAV/MP3) для распознавания речи")
@@ -3023,14 +3262,13 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
                 recognized = recognize_speech_from_audio(audio_file.read())
                 if recognized:
                     st.success(f"✅ Распознано: {recognized}")
-                    # 🆕 Автозаполнение поля ввода и очистка режима голоса
                     st.session_state.chat_input = recognized
                     st.session_state.voice_show_upload = False
                     st.rerun()
                 else:
                     st.error("❌ Не удалось распознать речь")
     
-    # 🆕 Кнопка очистки чата
+    # Кнопка очистки чата
     if st.button("🗑️ Очистить диалог", use_container_width=True):
         st.session_state.agent_messages = []
         save_messages_auto([])
@@ -3347,169 +3585,45 @@ def render_conditions_tab():
     """)
 
 
-# ============================================================================
-# 🆕 ФУНКЦИИ ДЛЯ РЕДАКТИРОВАНИЯ ТАБЛИЦ
-# ============================================================================
-def render_table_editor(df: pd.DataFrame, table_id: str, api_key: str):
-    """
-    🆕 Рендерит редактор таблицы с возможностью:
-    - Просмотра и редактирования данных
-    - Сохранения результата
-    - Удаления таблицы
-    - Экспорта в Excel
-    """
-    st.markdown(f'<div class="table-editor">', unsafe_allow_html=True)
-    
-    # Заголовок с действиями
-    st.markdown('<div class="table-editor-header">', unsafe_allow_html=True)
-    col_title, col_actions = st.columns([3, 2])
-    
-    with col_title:
-        st.markdown(f"### 📊 Редактор: {table_id}")
-        st.caption(f"Размер: {df.shape[0]} строк × {df.shape[1]} столбцов")
-    
-    with col_actions:
-        st.markdown('<div class="table-actions">', unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            if st.button("💾 Сохранить", key=f"save_{table_id}", use_container_width=True):
-                st.session_state.saved_tables[table_id] = df.copy()
-                save_tables_auto(st.session_state.saved_tables)
-                st.success(f"✅ Таблица '{table_id}' сохранена!")
-        with c2:
-            if st.button("🗑️ Удалить", key=f"delete_{table_id}", use_container_width=True):
-                if table_id in st.session_state.saved_tables:
-                    del st.session_state.saved_tables[table_id]
-                    save_tables_auto(st.session_state.saved_tables)
-                    st.session_state.current_df = None
-                    st.success("🗑️ Таблица удалена")
-                    st.rerun()
-        with c3:
-            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
-                st.session_state.table_manager.write_excel(df, tmp.name)
-                with open(tmp.name, 'rb') as f:
-                    st.download_button("📥 Excel", f, file_name=f"{table_id}.xlsx", 
-                                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                     key=f"dl_{table_id}", use_container_width=True)
-        with c4:
-            if st.button("✏️ ИИ", key=f"ai_{table_id}", use_container_width=True, help="ИИ-трансформация"):
-                st.session_state.table_edit_mode = True
-                st.session_state.editing_table_id = table_id
-        st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    # 🆕 Редактируемая таблица через st.data_editor
-    st.markdown("#### ✏️ Редактирование данных")
-    edited_df = st.data_editor(
-        df,
-        num_rows="dynamic",
-        use_container_width=True,
-        key=f"editor_{table_id}",
-        hide_index=True
-    )
-    
-    # Сохранение изменений при редактировании
-    if not df.equals(edited_df):
-        st.session_state.current_df = edited_df
-        st.session_state.saved_tables[table_id] = edited_df.copy()
-        save_tables_auto(st.session_state.saved_tables)
-        st.toast("🔄 Изменения сохранены", icon="💾")
-    
-    # 🆕 ИИ-трансформация
-    if st.session_state.table_edit_mode and st.session_state.editing_table_id == table_id:
-        with st.expander("🤖 ИИ-помощник для таблиц", expanded=True):
-            instruction = st.text_area(
-                "Опишите, что сделать с таблицей:",
-                placeholder="Пример: удали пустые строки, добавь столбец Итого = Цена * Количество, отсортируй по дате",
-                height=80,
-                key=f"ai_instruction_{table_id}"
-            )
-            
-            if st.button("🚀 Применить ИИ", type="primary", key=f"ai_apply_{table_id}"):
-                if instruction and api_key:
-                    with st.spinner("🧠 Анализирую данные..."):
-                        result = st.session_state.table_manager.ai_analyze_dataframe(edited_df, instruction, api_key)
-                        
-                        if 'error' not in result:
-                            st.success("✅ Анализ завершён")
-                            
-                            with st.expander("📋 Результаты анализа", expanded=True):
-                                st.markdown(f"**🔍 Анализ:** {result.get('analysis', '')}")
-                                if result.get('issues_found'):
-                                    for issue in result['issues_found']:
-                                        st.warning(f"⚠️ {issue}")
-                                if result.get('recommendations'):
-                                    for rec in result['recommendations']:
-                                        st.info(f"💡 {rec}")
-                            
-                            if result.get('ready_code'):
-                                st.code(result['ready_code'], language='python')
-                                if st.button("💾 Применить код", key=f"apply_code_{table_id}"):
-                                    try:
-                                        transformed_df = st.session_state.table_manager.execute_transformation(
-                                            edited_df.copy(), result['ready_code']
-                                        )
-                                        st.session_state.current_df = transformed_df
-                                        st.session_state.saved_tables[table_id] = transformed_df.copy()
-                                        save_tables_auto(st.session_state.saved_tables)
-                                        st.success("✅ Трансформация применена!")
-                                        st.session_state.table_edit_mode = False
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"❌ Ошибка: {e}")
-                        else:
-                            st.error(f"❌ {result['error']}")
-    
-    st.markdown('</div>', unsafe_allow_html=True)
-
-
-def render_saved_tables_list():
-    """🆕 Рендерит список сохранённых таблиц"""
-    if not st.session_state.saved_tables:
-        st.info("💡 Нет сохранённых таблиц. Загрузите или создайте таблицу, чтобы сохранить её здесь.")
-        return
-    
-    st.markdown("### 📚 Сохранённые таблицы")
-    
-    for table_id, df in st.session_state.saved_tables.items():
-        with st.expander(f"📊 {table_id} ({df.shape[0]}×{df.shape[1]})", expanded=False):
-            # Предпросмотр
-            st.dataframe(df.head(5), use_container_width=True)
-            
-            # Действия
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                if st.button("✏️ Открыть", key=f"open_{table_id}", use_container_width=True):
-                    st.session_state.current_df = df.copy()
-                    st.session_state.editing_table_id = table_id
-                    st.rerun()
-            with col2:
-                with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
-                    st.session_state.table_manager.write_excel(df, tmp.name)
-                    with open(tmp.name, 'rb') as f:
-                        st.download_button("📥 Скачать", f, file_name=f"{table_id}.xlsx",
-                                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                         key=f"dl_saved_{table_id}", use_container_width=True)
-            with col3:
-                if st.button("🗑️ Удалить", key=f"del_saved_{table_id}", use_container_width=True):
-                    del st.session_state.saved_tables[table_id]
-                    save_tables_auto(st.session_state.saved_tables)
-                    if st.session_state.editing_table_id == table_id:
-                        st.session_state.current_df = None
-                        st.session_state.editing_table_id = None
-                    st.rerun()
-
-
 def render_tables_tab(api_key: str):
-    """🆕 Рендерит вкладку таблиц с ИИ и редактированием"""
+    """Рендерит вкладку таблиц с ИИ и редактированием"""
     st.subheader("🗂 Таблицы + ИИ + Редактор")
     
     if not EXCEL_SUPPORT:
         st.warning("⚠️ Установите openpyxl: `pip install openpyxl`")
     
-    # 🆕 Список сохранённых таблиц - всегда сверху
+    # Список сохранённых таблиц
     with st.expander("📚 Сохранённые таблицы", expanded=not st.session_state.saved_tables):
-        render_saved_tables_list()
+        if not st.session_state.saved_tables:
+            st.info("💡 Нет сохранённых таблиц. Загрузите или создайте таблицу, чтобы сохранить её здесь.")
+        else:
+            st.markdown("### 📚 Сохранённые таблицы")
+            
+            for table_id, df in st.session_state.saved_tables.items():
+                with st.expander(f"📊 {table_id} ({df.shape[0]}×{df.shape[1]})", expanded=False):
+                    st.dataframe(df.head(5), use_container_width=True)
+                    
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if st.button("✏️ Открыть", key=f"open_{table_id}", use_container_width=True):
+                            st.session_state.current_df = df.copy()
+                            st.session_state.editing_table_id = table_id
+                            st.rerun()
+                    with col2:
+                        with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
+                            st.session_state.table_manager.write_excel(df, tmp.name)
+                            with open(tmp.name, 'rb') as f:
+                                st.download_button("📥 Скачать", f, file_name=f"{table_id}.xlsx",
+                                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                                 key=f"dl_saved_{table_id}", use_container_width=True)
+                    with col3:
+                        if st.button("🗑️ Удалить", key=f"del_saved_{table_id}", use_container_width=True):
+                            del st.session_state.saved_tables[table_id]
+                            save_tables_auto(st.session_state.saved_tables)
+                            if st.session_state.editing_table_id == table_id:
+                                st.session_state.current_df = None
+                                st.session_state.editing_table_id = None
+                            st.rerun()
     
     st.markdown("---")
     
@@ -3554,46 +3668,434 @@ def render_tables_tab(api_key: str):
                         st.error(f"❌ Ошибка чтения: {e}")
     
     with col2:
-        # 🆕 Если таблица выбрана - показываем редактор
         if st.session_state.current_df is not None and st.session_state.editing_table_id:
-            render_table_editor(
-                st.session_state.current_df, 
-                st.session_state.editing_table_id, 
-                api_key
+            st.markdown(f'<div class="table-editor">', unsafe_allow_html=True)
+            
+            st.markdown(f"### 📊 Редактор: {st.session_state.editing_table_id}")
+            st.caption(f"Размер: {st.session_state.current_df.shape[0]} строк × {st.session_state.current_df.shape[1]} столбцов")
+            
+            col_actions = st.columns(4)
+            with col_actions[0]:
+                if st.button("💾 Сохранить", key=f"save_{st.session_state.editing_table_id}", use_container_width=True):
+                    st.session_state.saved_tables[st.session_state.editing_table_id] = st.session_state.current_df.copy()
+                    save_tables_auto(st.session_state.saved_tables)
+                    st.success("✅ Сохранено!")
+            with col_actions[1]:
+                if st.button("🗑️ Удалить", key=f"delete_{st.session_state.editing_table_id}", use_container_width=True):
+                    if st.session_state.editing_table_id in st.session_state.saved_tables:
+                        del st.session_state.saved_tables[st.session_state.editing_table_id]
+                        save_tables_auto(st.session_state.saved_tables)
+                    st.session_state.current_df = None
+                    st.success("🗑️ Удалено")
+                    st.rerun()
+            with col_actions[2]:
+                with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
+                    st.session_state.table_manager.write_excel(st.session_state.current_df, tmp.name)
+                    with open(tmp.name, 'rb') as f:
+                        st.download_button("📥 Excel", f, file_name=f"{st.session_state.editing_table_id}.xlsx", 
+                                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                         key=f"dl_{st.session_state.editing_table_id}", use_container_width=True)
+            with col_actions[3]:
+                if st.button("✏️ ИИ", key=f"ai_{st.session_state.editing_table_id}", use_container_width=True):
+                    st.session_state.table_edit_mode = True
+            
+            st.markdown("#### ✏️ Редактирование данных")
+            edited_df = st.data_editor(
+                st.session_state.current_df,
+                num_rows="dynamic",
+                use_container_width=True,
+                key=f"editor_{st.session_state.editing_table_id}",
+                hide_index=True
             )
+            
+            if not st.session_state.current_df.equals(edited_df):
+                st.session_state.current_df = edited_df
+                st.session_state.saved_tables[st.session_state.editing_table_id] = edited_df.copy()
+                save_tables_auto(st.session_state.saved_tables)
+                st.toast("🔄 Изменения сохранены", icon="💾")
+            
+            if st.session_state.table_edit_mode:
+                with st.expander("🤖 ИИ-помощник для таблиц", expanded=True):
+                    instruction = st.text_area(
+                        "Опишите, что сделать с таблицей:",
+                        placeholder="Пример: удали пустые строки, добавь столбец Итого",
+                        height=80,
+                        key=f"ai_instruction_{st.session_state.editing_table_id}"
+                    )
+                    
+                    if st.button("🚀 Применить ИИ", type="primary", key=f"ai_apply_{st.session_state.editing_table_id}"):
+                        if instruction and api_key:
+                            with st.spinner("🧠 Анализирую..."):
+                                result = st.session_state.table_manager.ai_analyze_dataframe(
+                                    edited_df, instruction, api_key
+                                )
+                                
+                                if 'error' not in result:
+                                    st.success("✅ Анализ завершён")
+                                    st.markdown(f"**🔍 Анализ:** {result.get('analysis', '')}")
+                                    
+                                    if result.get('ready_code'):
+                                        st.code(result['ready_code'], language='python')
+                                        if st.button("💾 Применить код", key=f"apply_code_{st.session_state.editing_table_id}"):
+                                            try:
+                                                transformed_df = st.session_state.table_manager.execute_transformation(
+                                                    edited_df.copy(), result['ready_code']
+                                                )
+                                                st.session_state.current_df = transformed_df
+                                                st.session_state.saved_tables[st.session_state.editing_table_id] = transformed_df.copy()
+                                                save_tables_auto(st.session_state.saved_tables)
+                                                st.success("✅ Применено!")
+                                                st.session_state.table_edit_mode = False
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"❌ Ошибка: {e}")
+                                else:
+                                    st.error(f"❌ {result['error']}")
+            
+            st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.info("💡 Загрузите таблицу слева или выберите из сохранённых выше")
+
+
+def render_images_tab(api_key: str):
+    """🆕 Рендерит вкладку работы с изображениями"""
+    st.subheader("🖼️ Редактор изображений с ИИ")
     
-    # 🆕 Быстрые действия с текущей таблицей
-    if st.session_state.current_df is not None:
-        st.markdown("---")
-        st.markdown("### ⚡ Быстрые действия")
+    if not IMAGE_SUPPORT:
+        st.error("⚠️ Установите необходимые библиотеки:")
+        st.code("pip install pillow rembg numpy opencv-python-headless")
+        return
+    
+    image_manager = st.session_state.image_manager
+    
+    # Вкладки для разных операций
+    img_tabs = st.tabs([
+        "📥 Загрузка", "✏️ Редактирование", "🎨 Массовая обработка", 
+        "💾 Результаты", "📊 Статистика"
+    ])
+    
+    with img_tabs[0]:
+        st.markdown("### 📥 Массовая загрузка изображений")
+        st.info(f"💡 Поддерживается загрузка до {CONFIG.MAX_IMAGE_UPLOAD} файлов. Форматы: {', '.join(CONFIG.SUPPORTED_IMAGE_FORMATS)}")
         
-        col_a, col_b, col_c, col_d = st.columns(4)
-        with col_a:
-            if st.button("🧹 Удалить дубликаты", use_container_width=True):
-                st.session_state.current_df = st.session_state.current_df.drop_duplicates()
-                st.session_state.saved_tables[st.session_state.editing_table_id] = st.session_state.current_df.copy()
-                save_tables_auto(st.session_state.saved_tables)
-                st.success("✅ Дубликаты удалены")
-                st.rerun()
-        with col_b:
-            if st.button("🗑️ Удалить пустые", use_container_width=True):
-                st.session_state.current_df = st.session_state.current_df.dropna(how='all')
-                st.session_state.saved_tables[st.session_state.editing_table_id] = st.session_state.current_df.copy()
-                save_tables_auto(st.session_state.saved_tables)
-                st.success("✅ Пустые строки удалены")
-                st.rerun()
-        with col_c:
-            if st.button("📈 Статистика", use_container_width=True):
-                with st.expander("📊 Статистика данных", expanded=True):
-                    st.write(st.session_state.current_df.describe(include='all'))
-        with col_d:
-            if st.button("🔄 Сбросить", use_container_width=True):
-                if st.session_state.editing_table_id in st.session_state.saved_tables:
-                    st.session_state.current_df = st.session_state.saved_tables[st.session_state.editing_table_id].copy()
-                    st.success("🔄 Данные сброшены к сохранённой версии")
-                    st.rerun()
+        uploaded_files = st.file_uploader(
+            "Выберите изображения",
+            type=list(CONFIG.SUPPORTED_IMAGE_FORMATS),
+            accept_multiple_files=True,
+            key="image_upload",
+            help="Можно выбрать несколько файлов одновременно"
+        )
+        
+        if uploaded_files:
+            st.markdown(f"### 📊 Загружено файлов: {len(uploaded_files)}")
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for i, uploaded_file in enumerate(uploaded_files):
+                try:
+                    # Проверяем размер файла
+                    file_size_mb = uploaded_file.size / (1024 * 1024)
+                    if file_size_mb > CONFIG.MAX_IMAGE_SIZE_MB:
+                        st.warning(f"⚠️ Файл {uploaded_file.name} превышает {CONFIG.MAX_IMAGE_SIZE_MB}MB и будет пропущен")
+                        continue
+                    
+                    # Открываем изображение
+                    image = Image.open(uploaded_file)
+                    
+                    # Сохраняем в session_state
+                    st.session_state.uploaded_images[uploaded_file.name] = image
+                    
+                    # Обновляем прогресс
+                    progress_bar.progress((i + 1) / len(uploaded_files))
+                    status_text.text(f"Загрузка: {uploaded_file.name} ({image.size[0]}x{image.size[1]})")
+                    
+                except Exception as e:
+                    st.error(f"❌ Ошибка загрузки {uploaded_file.name}: {e}")
+            
+            progress_bar.empty()
+            status_text.empty()
+            st.success(f"✅ Загружено {len(st.session_state.uploaded_images)} изображений")
+            
+            # Предпросмотр первых 6 изображений
+            if st.session_state.uploaded_images:
+                st.markdown("### 👁️ Предпросмотр")
+                cols = st.columns(3)
+                for idx, (filename, img) in enumerate(list(st.session_state.uploaded_images.items())[:6]):
+                    with cols[idx % 3]:
+                        st.image(img, caption=f"{filename} ({img.size[0]}x{img.size[1]})", use_container_width=True)
+    
+    with img_tabs[1]:
+        st.markdown("### ✏️ Редактирование изображений")
+        
+        if not st.session_state.uploaded_images:
+            st.info("💡 Загрузите изображения на вкладке 'Загрузка'")
+        else:
+            # Выбор изображения для редактирования
+            selected_filename = st.selectbox(
+                "Выберите изображение",
+                options=list(st.session_state.uploaded_images.keys()),
+                key="selected_image_edit"
+            )
+            
+            if selected_filename:
+                original_image = st.session_state.uploaded_images[selected_filename]
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.markdown("#### Оригинал")
+                    st.image(original_image, use_container_width=True)
+                    st.caption(f"📐 {original_image.size[0]}×{original_image.size[1]} | 💾 {original_image.size[0] * original_image.size[1] * 3 / 1024:.1f} KB")
+                
+                with col2:
+                    st.markdown("#### Операции")
+                    
+                    operation = st.selectbox(
+                        "Выберите операцию",
+                        options=[op.value for op in ImageEditOperation],
+                        format_func=lambda x: {
+                            'remove_background': '🎨 Удалить фон',
+                            'remove_watermark': '💧 Удалить водяной знак',
+                            'resize': '📐 Изменить размер',
+                            'crop': '✂️ Обрезать',
+                            'rotate': '🔄 Повернуть',
+                            'enhance': '✨ Улучшить качество',
+                            'filter': ' Применить фильтр',
+                            'add_watermark': '💬 Добавить водяной знак',
+                            'convert_format': '📄 Конвертировать формат',
+                        }.get(x, x),
+                        key="image_operation"
+                    )
+                    
+                    # Параметры в зависимости от операции
+                    params = {}
+                    
+                    if operation == 'resize':
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            params['width'] = st.number_input("Ширина", min_value=1, value=original_image.size[0], key="img_width")
+                        with col_b:
+                            params['height'] = st.number_input("Высота", min_value=1, value=original_image.size[1], key="img_height")
+                        params['maintain_aspect'] = st.checkbox("Сохранить пропорции", value=True, key="img_aspect")
+                    
+                    elif operation == 'rotate':
+                        params['angle'] = st.slider("Угол поворота", -180, 180, 0, key="img_rotate_angle")
+                    
+                    elif operation == 'enhance':
+                        params['brightness'] = st.slider("Яркость", 0.0, 2.0, 1.0, key="img_brightness")
+                        params['contrast'] = st.slider("Контраст", 0.0, 2.0, 1.0, key="img_contrast")
+                        params['sharpness'] = st.slider("Четкость", 0.0, 2.0, 1.0, key="img_sharpness")
+                    
+                    elif operation == 'filter':
+                        params['filter_type'] = st.selectbox(
+                            "Фильтр",
+                            options=['blur', 'sharpen', 'edge_enhance', 'contour', 'emboss', 'smooth', 'detail'],
+                            format_func=lambda x: {
+                                'blur': 'Размытие',
+                                'sharpen': 'Четкость',
+                                'edge_enhance': 'Усиление краев',
+                                'contour': 'Контуры',
+                                'emboss': 'Тиснение',
+                                'smooth': 'Сглаживание',
+                                'detail': 'Детализация',
+                            }.get(x, x),
+                            key="img_filter"
+                        )
+                    
+                    elif operation == 'add_watermark':
+                        params['text'] = st.text_input("Текст", value="Watermark", key="img_wm_text")
+                        params['position'] = st.selectbox(
+                            "Позиция",
+                            options=['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+                            format_func=lambda x: {
+                                'top-left': 'Верхний левый',
+                                'top-right': 'Верхний правый',
+                                'bottom-left': 'Нижний левый',
+                                'bottom-right': 'Нижний правый',
+                            }.get(x, x),
+                            key="img_wm_pos"
+                        )
+                        params['font_size'] = st.slider("Размер шрифта", 10, 100, 40, key="img_wm_size")
+                        params['opacity'] = st.slider("Прозрачность", 0, 255, 128, key="img_wm_opacity")
+                    
+                    elif operation == 'convert_format':
+                        params['format'] = st.selectbox(
+                            "Формат",
+                            options=['PNG', 'JPEG', 'WEBP', 'BMP'],
+                            key="img_format"
+                        )
+                    
+                    # Кнопка применения
+                    if st.button("🚀 Применить", type="primary", use_container_width=True):
+                        try:
+                            with st.spinner("Обработка..."):
+                                processed = image_manager._apply_operation(
+                                    original_image, 
+                                    ImageEditOperation(operation), 
+                                    params
+                                )
+                                
+                                st.session_state.processed_images[f"processed_{selected_filename}"] = processed
+                                
+                                st.success("✅ Обработано!")
+                                st.image(processed, caption="Результат", use_container_width=True)
+                                
+                                # Кнопка сохранения
+                                if st.button("💾 Сохранить результат", key=f"save_img_{selected_filename}"):
+                                    save_path = IMAGES_DIR / f"processed_{selected_filename}"
+                                    processed.save(save_path)
+                                    st.success(f"✅ Сохранено в {save_path}")
+                                    
+                        except Exception as e:
+                            st.error(f"❌ Ошибка: {e}")
+    
+    with img_tabs[2]:
+        st.markdown("### 🎨 Массовая обработка изображений")
+        
+        if not st.session_state.uploaded_images:
+            st.info("💡 Загрузите изображения на вкладке 'Загрузка'")
+        else:
+            st.markdown(f"📊 Доступно изображений: {len(st.session_state.uploaded_images)}")
+            
+            batch_operation = st.selectbox(
+                "Операция для всех изображений",
+                options=[op.value for op in ImageEditOperation],
+                format_func=lambda x: {
+                    'remove_background': '🎨 Удалить фон',
+                    'remove_watermark': '💧 Удалить водяной знак',
+                    'resize': '📐 Изменить размер',
+                    'enhance': '✨ Улучшить качество',
+                    'convert_format': '📄 Конвертировать формат',
+                }.get(x, x),
+                key="batch_operation"
+            )
+            
+            # Параметры для массовой обработки
+            batch_params = {}
+            
+            if batch_operation == 'resize':
+                col_a, col_b = st.columns(2)
+                with col_a:
+                    batch_params['width'] = st.number_input("Ширина", min_value=1, value=800, key="batch_width")
+                with col_b:
+                    batch_params['height'] = st.number_input("Высота", min_value=1, value=600, key="batch_height")
+                batch_params['maintain_aspect'] = st.checkbox("Сохранить пропорции", value=True, key="batch_aspect")
+            
+            elif batch_operation == 'enhance':
+                batch_params['brightness'] = st.slider("Яркость", 0.0, 2.0, 1.0, key="batch_brightness")
+                batch_params['contrast'] = st.slider("Контраст", 0.0, 2.0, 1.0, key="batch_contrast")
+            
+            elif batch_operation == 'convert_format':
+                batch_params['format'] = st.selectbox("Формат", options=['PNG', 'JPEG', 'WEBP'], key="batch_format")
+            
+            if st.button("🚀 Обработать все", type="primary", use_container_width=True):
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                def update_progress(current, total, filename):
+                    progress_bar.progress(current / total)
+                    status_text.text(f"Обработка: {filename} ({current}/{total})")
+                
+                images_list = list(st.session_state.uploaded_images.items())
+                
+                results = image_manager.process_batch(
+                    images_list,
+                    ImageEditOperation(batch_operation),
+                    batch_params,
+                    update_progress
+                )
+                
+                # Сохраняем результаты
+                for filename, processed_img in results:
+                    if processed_img is not None:
+                        st.session_state.processed_images[f"batch_{filename}"] = processed_img
+                
+                progress_bar.empty()
+                status_text.empty()
+                st.success(f"✅ Обработано {len(results)} изображений")
+                
+                if st.button("💾 Сохранить все результаты"):
+                    saved_count = 0
+                    for filename, img in st.session_state.processed_images.items():
+                        if img is not None:
+                            save_path = IMAGES_DIR / filename
+                            img.save(save_path)
+                            saved_count += 1
+                    st.success(f"✅ Сохранено {saved_count} файлов в {IMAGES_DIR}")
+    
+    with img_tabs[3]:
+        st.markdown("### 💾 Сохранённые результаты")
+        
+        if not st.session_state.processed_images:
+            st.info("💡 Нет обработанных изображений")
+        else:
+            st.markdown(f"📊 Всего обработано: {len(st.session_state.processed_images)}")
+            
+            # Сетка для отображения
+            cols = st.columns(3)
+            
+            for idx, (filename, img) in enumerate(st.session_state.processed_images.items()):
+                with cols[idx % 3]:
+                    st.image(img, caption=filename, use_container_width=True)
+                    
+                    col_save, col_dl, col_del = st.columns(3)
+                    
+                    with col_save:
+                        if st.button("💾", key=f"save_res_{idx}", help="Сохранить"):
+                            save_path = IMAGES_DIR / filename
+                            img.save(save_path)
+                            st.success("✅")
+                    
+                    with col_dl:
+                        img_bytes = BytesIO()
+                        img.save(img_bytes, format='PNG')
+                        st.download_button("📥", img_bytes, filename, "image/png", key=f"dl_res_{idx}")
+                    
+                    with col_del:
+                        if st.button("🗑️", key=f"del_res_{idx}", help="Удалить"):
+                            del st.session_state.processed_images[filename]
+                            st.rerun()
+            
+            # Кнопка сохранения всех
+            if st.button("💾 Сохранить все в папку", use_container_width=True):
+                saved_count = 0
+                for filename, img in st.session_state.processed_images.items():
+                    if img is not None:
+                        save_path = IMAGES_DIR / filename
+                        img.save(save_path)
+                        saved_count += 1
+                st.success(f"✅ Сохранено {saved_count} файлов в {IMAGES_DIR}")
+    
+    with img_tabs[4]:
+        st.markdown("### 📊 Статистика обработки")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Загружено", len(st.session_state.uploaded_images))
+        with col2:
+            st.metric("Обработано", len(st.session_state.processed_images))
+        with col3:
+            total_size = sum(img.size[0] * img.size[1] * 3 for img in st.session_state.uploaded_images.values())
+            st.metric("Общий размер", f"{total_size / (1024*1024):.1f} MB")
+        with col4:
+            st.metric("Сохранено", len(list(IMAGES_DIR.glob("*"))) if IMAGES_DIR.exists() else 0)
+        
+        # График по форматам
+        if st.session_state.uploaded_images:
+            formats_count = {}
+            for filename in st.session_state.uploaded_images.keys():
+                ext = filename.split('.')[-1].upper()
+                formats_count[ext] = formats_count.get(ext, 0) + 1
+            
+            df_formats = pd.DataFrame([
+                {'Формат': fmt, 'Количество': count}
+                for fmt, count in formats_count.items()
+            ])
+            
+            fig = px.pie(df_formats, values='Количество', names='Формат', title="Распределение по форматам")
+            st.plotly_chart(fig, use_container_width=True)
 
 
 def render_help_tab():
@@ -3613,10 +4115,32 @@ def render_help_tab():
     ## 💬 Новый чат-интерфейс
     
     🆕 Обновления диалога:
-    - ✅ Сообщения отображаются сверху вниз как в мессенджерах
-    - ✅ Поле ввода автоматически очищается после отправки
-    - ✅ Цветовое оформление: ваши сообщения справа (фиолетовые), ответы агента слева
-    - ✅ Поддержка голосового ввода и озвучки ответов
+    - ✅ **Поле ввода всегда сверху** - как в современных мессенджерах
+    - ✅ **Автоочистка** - поле очищается после отправки сообщения
+    - ✅ **Цветовое оформление** - ваши сообщения справа (фиолетовые), ответы агента слева
+    - ✅ **Поддержка голоса** - загрузка аудио и озвучка ответов
+    
+    ---
+    
+    ## 🖼️ Работа с изображениями
+    
+    🆕 Новые возможности:
+    - 📥 **Массовая загрузка** - до 10,000+ изображений одновременно
+    - ✏️ **Редактирование** - изменение размера, поворот, обрезка, фильтры
+    - 🎨 **Удаление фона** - автоматическое удаление фона с помощью ИИ
+    - 💧 **Удаление водяных знаков** - базовое удаление водяных знаков
+    - 💬 **Добавление текста** - наложение водяных знаков и надписей
+    - 🎨 **Улучшение качества** - яркость, контраст, четкость
+    - 💾 **Сохранение** - локальное сохранение результатов в папке
+    
+    ### Примеры использования:
+    ```
+    • Обработка фотографий товаров для интернет-магазина
+    • Удаление фона с портретных фото
+    • Массовое изменение размера изображений
+    • Добавление водяных знаков на фото
+    • Улучшение качества старых фотографий
+    ```
     
     ---
     
@@ -3692,15 +4216,22 @@ def render_help_tab():
     ## 🔧 Установка
     
     ```bash
-    pip install streamlit pandas openpyxl openai plotly requests
-    pip install SpeechRecognition gTTS  # для голоса
+    # Базовая установка
+    pip install streamlit pandas openpyxl openai plotly requests pillow
     
+    # Для работы с изображениями
+    pip install rembg numpy opencv-python-headless
+    
+    # Для голосовых функций
+    pip install SpeechRecognition gTTS
+    
+    # Запуск
     streamlit run workflow_builder.py
     ```
     
     ---
     
-    *Workflow Builder Pro v9.1 • Монопоточная версия • © 2026*
+    *Workflow Builder Pro v9.2 • Монопоточная версия • © 2026*
     """)
 
 
