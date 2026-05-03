@@ -1,22 +1,10 @@
-# === ЯДРО (Обязательно) ===
-streamlit>=1.32.0
-pandas>=2.1.0
-openpyxl>=3.1.2
-openai>=1.12.0
-plotly>=5.18.0
-requests>=2.31.0
-Pillow>=10.2.0
-numpy>=1.26.0,<2.0.0
-
-# === ОПЦИОНАЛЬНО (Раскомментируйте по необходимости) ===
-# Голосовые функции
-# SpeechRecognition>=3.10.0
-# gTTS>=2.5.0
-
-# Обработка изображений (УДАЛЕНИЕ ФОНА)
-# rembg>=2.0.50
-# onnxruntime>=1.16.0
-
-# Google Sheets
-# gspread>=5.12.0
-# google-auth>=2.23.0
+streamlit
+pandas
+openpyxl
+openai
+plotly
+requests
+Pillow
+numpy
+rembg
+onnxruntime
