@@ -1,6 +1,6 @@
 """
 ================================================================================
-WORKFLOW BUILDER PRO v9.0 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
+WORKFLOW BUILDER PRO v9.1 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
 Обучаемые ИИ-агенты | Расширенная работа с таблицами | Голосовой ввод | Мобильная адаптация
 ================================================================================
 
@@ -16,12 +16,14 @@ WORKFLOW BUILDER PRO v9.0 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
     • Голосовой ввод/вывод на русском языке
     • Парсер условий на естественном русском языке
     • Мобильная адаптация интерфейса
+    • 🆕 Чат-интерфейс как у AI (сообщения сверху, автоочистка ввода)
+    • 🆕 Редактирование таблиц с сохранением/удалением результатов
 
 Зависимости:
     pip install streamlit pandas openpyxl openai plotly requests gspread google-auth SpeechRecognition gTTS
 
 Автор: Workflow Builder Team
-Версия: 9.0.0
+Версия: 9.1.0
 Дата: 2026
 Лицензия: MIT
 ================================================================================
@@ -60,6 +62,7 @@ WORKFLOW_FILE = DATA_DIR / "workflow.json"
 AGENTS_FILE = DATA_DIR / "agents.json"
 MESSAGES_FILE = DATA_DIR / "messages.json"
 HISTORY_FILE = DATA_DIR / "history.json"
+TABLES_FILE = DATA_DIR / "tables.json"
 
 
 def save_workflow_auto(workflow: List[Dict]):
@@ -142,6 +145,45 @@ def load_history_auto() -> List[Dict]:
     return []
 
 
+def save_tables_auto(tables_data: Dict):
+    """Автосохранение таблиц"""
+    try:
+        with open(TABLES_FILE, 'w', encoding='utf-8') as f:
+            # Конвертируем DataFrame в dict для JSON
+            serializable = {}
+            for key, value in tables_data.items():
+                if isinstance(value, pd.DataFrame):
+                    serializable[key] = {
+                        'data': value.to_dict('records'),
+                        'columns': list(value.columns),
+                        'created_at': datetime.now().isoformat()
+                    }
+                else:
+                    serializable[key] = value
+            json.dump(serializable, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Не удалось сохранить таблицы: {e}")
+
+
+def load_tables_auto() -> Dict:
+    """Автозагрузка таблиц"""
+    if TABLES_FILE.exists():
+        try:
+            with open(TABLES_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Восстанавливаем DataFrame
+                result = {}
+                for key, value in data.items():
+                    if isinstance(value, dict) and 'data' in value:
+                        result[key] = pd.DataFrame(value['data'])
+                    else:
+                        result[key] = value
+                return result
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить таблицы: {e}")
+    return {}
+
+
 # Библиотеки для работы с таблицами
 try:
     import openpyxl
@@ -189,7 +231,7 @@ class AppConfig:
     """Глобальная конфигурация приложения"""
     APP_TITLE: str = "Workflow Builder Pro – Голосовой помощник"
     APP_ICON: str = "🧠"
-    APP_VERSION: str = "9.0.0"
+    APP_VERSION: str = "9.1.0"
     
     # API настройки
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
@@ -952,6 +994,89 @@ def get_app_styles() -> str:
         
         .stTabs [aria-selected="true"] p {
             color: white !important;
+        }
+        
+        /* ========== ЧАТ-ИНТЕРФЕЙС ========== */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding: 0.5rem;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        
+        .chat-message-user {
+            background: linear-gradient(135deg, #6974dc, #764ba2);
+            color: white !important;
+            padding: 0.8rem 1.2rem;
+            border-radius: 18px 18px 4px 18px;
+            margin-left: auto;
+            max-width: 80%;
+            box-shadow: 0 2px 8px rgba(105, 116, 220, 0.3);
+        }
+        
+        .chat-message-agent {
+            background: #f0f2f6;
+            color: #000000 !important;
+            padding: 0.8rem 1.2rem;
+            border-radius: 18px 18px 18px 4px;
+            margin-right: auto;
+            max-width: 80%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        
+        .chat-message-user *, .chat-message-agent * {
+            color: inherit !important;
+        }
+        
+        .chat-input-container {
+            position: sticky;
+            bottom: 0;
+            background: #ffffff;
+            padding: 1rem 0;
+            border-top: 1px solid #e0e0e0;
+            z-index: 100;
+        }
+        
+        /* ========== РЕДАКТИРУЕМЫЕ ТАБЛИЦЫ ========== */
+        .table-editor {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin: 0.5rem 0;
+        }
+        
+        .table-editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .table-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .saved-table-card {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-left: 4px solid var(--accent-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        
+        .saved-table-card * {
+            color: #000000 !important;
         }
     </style>
     """
@@ -2579,7 +2704,10 @@ def initialize_session_state():
         'table_manager': None,
         'current_df': None,
         'excel_loaded': False,
-        'data_loaded': False
+        'data_loaded': False,
+        'saved_tables': {},  # 🆕 Хранилище сохранённых таблиц
+        'table_edit_mode': False,  # 🆕 Режим редактирования таблицы
+        'editing_table_id': None,  # 🆕 ID редактируемой таблицы
     }
     
     for key, value in defaults.items():
@@ -2603,6 +2731,10 @@ def initialize_session_state():
         saved_agents = load_agents_auto()
         if saved_agents and 'agents' not in st.session_state:
             st.session_state.agents = saved_agents
+        
+        saved_tables = load_tables_auto()
+        if saved_tables:
+            st.session_state.saved_tables = saved_tables
         
         st.session_state.data_loaded = True
 
@@ -2641,6 +2773,12 @@ def main():
         if current_history != st._last_history:
             save_history_auto(current_history)
     st._last_history = current_history.copy() if current_history else []
+    
+    current_tables = st.session_state.get('saved_tables', {})
+    if hasattr(st, '_last_tables'):
+        if current_tables != st._last_tables:
+            save_tables_auto(current_tables)
+    st._last_tables = current_tables.copy() if current_tables else {}
     
     # Заголовок
     st.markdown(f"""
@@ -2737,10 +2875,10 @@ def main():
                 st.rerun()
             
             if st.button("⚠️ Сбросить ВСЁ", use_container_width=True, type="secondary"):
-                for f in [WORKFLOW_FILE, AGENTS_FILE, MESSAGES_FILE, HISTORY_FILE]:
+                for f in [WORKFLOW_FILE, AGENTS_FILE, MESSAGES_FILE, HISTORY_FILE, TABLES_FILE]:
                     if f.exists():
                         f.unlink()
-                for key in ['workflow', 'agent_messages', 'history', 'agents', 'data_loaded']:
+                for key in ['workflow', 'agent_messages', 'history', 'agents', 'data_loaded', 'saved_tables']:
                     if key in st.session_state:
                         del st.session_state[key]
                 st.rerun()
@@ -2796,7 +2934,11 @@ def main():
 
 
 def render_chat_tab(agent_manager: AgentManager, api_key: str):
-    """Рендерит вкладку диалога с агентом"""
+    """
+    🆕 Рендерит вкладку диалога с агентом в стиле чат-интерфейса
+    - Сообщения всегда сверху
+    - Поле ввода с автоочисткой после отправки
+    """
     current_agent = agent_manager.get_current_agent()
     
     if not current_agent:
@@ -2806,57 +2948,92 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
     st.subheader(f"💬 {current_agent.name}")
     st.caption(f"Роль: {current_agent.role}")
     
+    # 🆕 Контейнер чата с прокруткой - всегда сверху
     chat_container = st.container()
     with chat_container:
+        # Отображение истории сообщений
         for msg in st.session_state.agent_messages:
             if msg['role'] == 'user':
-                st.markdown(f"**👤 Вы:** {msg['content']}")
+                st.markdown(f'<div class="chat-message-user"><strong>👤 Вы:</strong><br>{msg["content"]}</div>', unsafe_allow_html=True)
             else:
-                st.markdown(f"**🤖 {current_agent.name}:** {msg['content']}")
-            st.markdown("---")
+                st.markdown(f'<div class="chat-message-agent"><strong>🤖 {current_agent.name}:</strong><br>{msg["content"]}</div>', unsafe_allow_html=True)
+        
+        # 🆕 Якорь для автоматической прокрутки вниз
+        st.markdown('<div id="chat-bottom"></div>', unsafe_allow_html=True)
     
-    user_input = st.text_area("✏️ Сообщение", height=80, key="chat_input")
+    # 🆕 Поле ввода - зафиксировано снизу (визуально)
+    st.markdown('<div class="chat-input-container">', unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1, 2])
+    user_input = st.text_area(
+        "✏️ Напишите сообщение...", 
+        height=60, 
+        key="chat_input",
+        placeholder="Введите ваш вопрос...",
+        label_visibility="collapsed"
+    )
+    
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
+    
     with col1:
-        use_training = st.checkbox("Обучение", value=True, key="chat_use_training")
+        use_training = st.checkbox("📚 Обуч.", value=True, key="chat_use_training", help="Использовать примеры обучения")
+    
     with col2:
-        if VOICE_SUPPORT and st.button("🎤 Голос", use_container_width=True):
+        if VOICE_SUPPORT and st.button("🎤", use_container_width=True, help="Голосовой ввод"):
             st.session_state.voice_show_upload = True
+    
     with col3:
+        if st.button("🔊", use_container_width=True, help="Озвучить ответ"):
+            if st.session_state.agent_messages and st.session_state.agent_messages[-1]['role'] == 'agent':
+                audio = text_to_speech_mp3(st.session_state.agent_messages[-1]['content'])
+                if audio:
+                    st.audio(audio, format="audio/mp3")
+    
+    with col4:
+        # 🆕 Кнопка "Отправить" с автоочисткой поля ввода
         if st.button("🚀 Отправить", type="primary", use_container_width=True):
-            if user_input:
-                st.session_state.agent_messages.append({'role': 'user', 'content': user_input})
+            if user_input.strip():
+                # Добавляем сообщение пользователя
+                st.session_state.agent_messages.append({'role': 'user', 'content': user_input.strip()})
                 
-                with st.spinner("Думает..."):
-                    response = current_agent.generate_response(user_input, api_key, use_training)
+                # 🆕 Немедленно очищаем поле ввода
+                st.session_state.chat_input = ""
                 
+                # Генерируем ответ агента
+                with st.spinner("🤖 Агент думает..."):
+                    response = current_agent.generate_response(user_input.strip(), api_key, use_training)
+                
+                # Добавляем ответ агента
                 st.session_state.agent_messages.append({'role': 'agent', 'content': response})
-                current_agent.add_conversation(user_input, response)
+                
+                # Сохраняем в историю агента
+                current_agent.add_conversation(user_input.strip(), response)
                 agent_manager.save_agents()
+                
+                # 🆕 Принудительный ререндер для обновления чата
                 st.rerun()
     
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 🆕 Голосовой ввод (если активирован)
     if st.session_state.voice_show_upload:
-        st.info("🎤 Загрузите аудио (WAV/MP3)")
-        audio_file = st.file_uploader("Файл", type=["wav", "mp3"], key="voice_upload")
-        if audio_file:
-            recognized = recognize_speech_from_audio(audio_file.read())
-            if recognized:
-                st.success(f"✅ {recognized}")
-                st.session_state.chat_input = recognized
-                st.session_state.voice_show_upload = False
-                st.rerun()
-            else:
-                st.error("❌ Не распознано")
+        with st.expander("🎤 Голосовой ввод", expanded=True):
+            st.info("Загрузите аудиофайл (WAV/MP3) для распознавания речи")
+            audio_file = st.file_uploader("Выберите файл", type=["wav", "mp3"], key="voice_upload")
+            if audio_file:
+                recognized = recognize_speech_from_audio(audio_file.read())
+                if recognized:
+                    st.success(f"✅ Распознано: {recognized}")
+                    # 🆕 Автозаполнение поля ввода и очистка режима голоса
+                    st.session_state.chat_input = recognized
+                    st.session_state.voice_show_upload = False
+                    st.rerun()
+                else:
+                    st.error("❌ Не удалось распознать речь")
     
-    if st.button("🔊 Озвучить", use_container_width=True):
-        if st.session_state.agent_messages and st.session_state.agent_messages[-1]['role'] == 'agent':
-            audio = text_to_speech_mp3(st.session_state.agent_messages[-1]['content'])
-            if audio:
-                st.audio(audio, format="audio/mp3")
-    
-    if st.button("🗑️ Очистить"):
+    # 🆕 Кнопка очистки чата
+    if st.button("🗑️ Очистить диалог", use_container_width=True):
         st.session_state.agent_messages = []
+        save_messages_auto([])
         st.rerun()
 
 
@@ -3170,82 +3347,253 @@ def render_conditions_tab():
     """)
 
 
-def render_tables_tab(api_key: str):
-    """Рендерит вкладку таблиц с ИИ"""
-    st.subheader("🗂 Таблицы + ИИ")
+# ============================================================================
+# 🆕 ФУНКЦИИ ДЛЯ РЕДАКТИРОВАНИЯ ТАБЛИЦ
+# ============================================================================
+def render_table_editor(df: pd.DataFrame, table_id: str, api_key: str):
+    """
+    🆕 Рендерит редактор таблицы с возможностью:
+    - Просмотра и редактирования данных
+    - Сохранения результата
+    - Удаления таблицы
+    - Экспорта в Excel
+    """
+    st.markdown(f'<div class="table-editor">', unsafe_allow_html=True)
     
-    if not EXCEL_SUPPORT:
-        st.warning("⚠️ Установите openpyxl: `pip install openpyxl`")
+    # Заголовок с действиями
+    st.markdown('<div class="table-editor-header">', unsafe_allow_html=True)
+    col_title, col_actions = st.columns([3, 2])
     
-    col1, col2 = st.columns(2)
+    with col_title:
+        st.markdown(f"### 📊 Редактор: {table_id}")
+        st.caption(f"Размер: {df.shape[0]} строк × {df.shape[1]} столбцов")
     
-    with col1:
-        st.markdown("### 📥 Загрузка")
-        source = st.radio("Источник", ["Google Sheets", "Excel"], key="table_source")
-        
-        if source == "Google Sheets":
-            gs_url = st.text_input("URL", placeholder="https://docs.google.com/...")
-            if st.button("📊 Загрузить"):
-                if gs_url:
-                    with st.spinner("Загрузка..."):
-                        df = st.session_state.table_manager.read_google_sheets(gs_url)
-                        if df is not None:
-                            st.session_state.current_df = df
-                            st.success(f"✅ {df.shape}")
-        else:
-            uploaded = st.file_uploader("Файл", type=['xlsx', 'xls'], key="excel_upload")
-            if uploaded:
-                with st.spinner("Чтение..."):
-                    df = st.session_state.table_manager.read_excel(uploaded)
-                    if df is not None:
-                        st.session_state.current_df = df
-                        st.success(f"✅ {df.shape}")
+    with col_actions:
+        st.markdown('<div class="table-actions">', unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            if st.button("💾 Сохранить", key=f"save_{table_id}", use_container_width=True):
+                st.session_state.saved_tables[table_id] = df.copy()
+                save_tables_auto(st.session_state.saved_tables)
+                st.success(f"✅ Таблица '{table_id}' сохранена!")
+        with c2:
+            if st.button("🗑️ Удалить", key=f"delete_{table_id}", use_container_width=True):
+                if table_id in st.session_state.saved_tables:
+                    del st.session_state.saved_tables[table_id]
+                    save_tables_auto(st.session_state.saved_tables)
+                    st.session_state.current_df = None
+                    st.success("🗑️ Таблица удалена")
+                    st.rerun()
+        with c3:
+            with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
+                st.session_state.table_manager.write_excel(df, tmp.name)
+                with open(tmp.name, 'rb') as f:
+                    st.download_button("📥 Excel", f, file_name=f"{table_id}.xlsx", 
+                                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                     key=f"dl_{table_id}", use_container_width=True)
+        with c4:
+            if st.button("✏️ ИИ", key=f"ai_{table_id}", use_container_width=True, help="ИИ-трансформация"):
+                st.session_state.table_edit_mode = True
+                st.session_state.editing_table_id = table_id
+        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
     
-    with col2:
-        if st.session_state.current_df is not None:
-            df = st.session_state.current_df
-            st.markdown("### 🔍 Предпросмотр")
-            st.dataframe(df.head(10))
-            
-            st.markdown("### 🤖 ИИ-команда")
+    # 🆕 Редактируемая таблица через st.data_editor
+    st.markdown("#### ✏️ Редактирование данных")
+    edited_df = st.data_editor(
+        df,
+        num_rows="dynamic",
+        use_container_width=True,
+        key=f"editor_{table_id}",
+        hide_index=True
+    )
+    
+    # Сохранение изменений при редактировании
+    if not df.equals(edited_df):
+        st.session_state.current_df = edited_df
+        st.session_state.saved_tables[table_id] = edited_df.copy()
+        save_tables_auto(st.session_state.saved_tables)
+        st.toast("🔄 Изменения сохранены", icon="💾")
+    
+    # 🆕 ИИ-трансформация
+    if st.session_state.table_edit_mode and st.session_state.editing_table_id == table_id:
+        with st.expander("🤖 ИИ-помощник для таблиц", expanded=True):
             instruction = st.text_area(
-                "Опишите действие:",
-                placeholder="Пример: удали пустые строки, добавь столбец Итого = Цена * Количество",
-                height=80
+                "Опишите, что сделать с таблицей:",
+                placeholder="Пример: удали пустые строки, добавь столбец Итого = Цена * Количество, отсортируй по дате",
+                height=80,
+                key=f"ai_instruction_{table_id}"
             )
             
-            if st.button("🚀 Выполнить", type="primary"):
+            if st.button("🚀 Применить ИИ", type="primary", key=f"ai_apply_{table_id}"):
                 if instruction and api_key:
-                    with st.spinner("🧠 Анализ..."):
-                        result = st.session_state.table_manager.ai_analyze_dataframe(df, instruction, api_key)
+                    with st.spinner("🧠 Анализирую данные..."):
+                        result = st.session_state.table_manager.ai_analyze_dataframe(edited_df, instruction, api_key)
                         
                         if 'error' not in result:
                             st.success("✅ Анализ завершён")
                             
-                            with st.expander("📋 Результаты", expanded=True):
-                                st.markdown(f"**Анализ:** {result.get('analysis', '')}")
+                            with st.expander("📋 Результаты анализа", expanded=True):
+                                st.markdown(f"**🔍 Анализ:** {result.get('analysis', '')}")
                                 if result.get('issues_found'):
                                     for issue in result['issues_found']:
                                         st.warning(f"⚠️ {issue}")
+                                if result.get('recommendations'):
+                                    for rec in result['recommendations']:
+                                        st.info(f"💡 {rec}")
                             
                             if result.get('ready_code'):
                                 st.code(result['ready_code'], language='python')
-                                if st.button("💾 Применить"):
+                                if st.button("💾 Применить код", key=f"apply_code_{table_id}"):
                                     try:
-                                        df = st.session_state.table_manager.execute_transformation(df, result['ready_code'])
-                                        st.session_state.current_df = df
-                                        st.success("✅ Применено!")
+                                        transformed_df = st.session_state.table_manager.execute_transformation(
+                                            edited_df.copy(), result['ready_code']
+                                        )
+                                        st.session_state.current_df = transformed_df
+                                        st.session_state.saved_tables[table_id] = transformed_df.copy()
+                                        save_tables_auto(st.session_state.saved_tables)
+                                        st.success("✅ Трансформация применена!")
+                                        st.session_state.table_edit_mode = False
                                         st.rerun()
                                     except Exception as e:
-                                        st.error(f"Ошибка: {e}")
+                                        st.error(f"❌ Ошибка: {e}")
                         else:
                             st.error(f"❌ {result['error']}")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_saved_tables_list():
+    """🆕 Рендерит список сохранённых таблиц"""
+    if not st.session_state.saved_tables:
+        st.info("💡 Нет сохранённых таблиц. Загрузите или создайте таблицу, чтобы сохранить её здесь.")
+        return
+    
+    st.markdown("### 📚 Сохранённые таблицы")
+    
+    for table_id, df in st.session_state.saved_tables.items():
+        with st.expander(f"📊 {table_id} ({df.shape[0]}×{df.shape[1]})", expanded=False):
+            # Предпросмотр
+            st.dataframe(df.head(5), use_container_width=True)
             
-            if st.button("💾 Сохранить Excel"):
+            # Действия
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("✏️ Открыть", key=f"open_{table_id}", use_container_width=True):
+                    st.session_state.current_df = df.copy()
+                    st.session_state.editing_table_id = table_id
+                    st.rerun()
+            with col2:
                 with tempfile.NamedTemporaryFile(suffix='.xlsx', delete=False) as tmp:
                     st.session_state.table_manager.write_excel(df, tmp.name)
                     with open(tmp.name, 'rb') as f:
-                        st.download_button("📥 Скачать", f, file_name="result.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                        st.download_button("📥 Скачать", f, file_name=f"{table_id}.xlsx",
+                                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                         key=f"dl_saved_{table_id}", use_container_width=True)
+            with col3:
+                if st.button("🗑️ Удалить", key=f"del_saved_{table_id}", use_container_width=True):
+                    del st.session_state.saved_tables[table_id]
+                    save_tables_auto(st.session_state.saved_tables)
+                    if st.session_state.editing_table_id == table_id:
+                        st.session_state.current_df = None
+                        st.session_state.editing_table_id = None
+                    st.rerun()
+
+
+def render_tables_tab(api_key: str):
+    """🆕 Рендерит вкладку таблиц с ИИ и редактированием"""
+    st.subheader("🗂 Таблицы + ИИ + Редактор")
+    
+    if not EXCEL_SUPPORT:
+        st.warning("⚠️ Установите openpyxl: `pip install openpyxl`")
+    
+    # 🆕 Список сохранённых таблиц - всегда сверху
+    with st.expander("📚 Сохранённые таблицы", expanded=not st.session_state.saved_tables):
+        render_saved_tables_list()
+    
+    st.markdown("---")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("### 📥 Загрузка данных")
+        source = st.radio("Источник", ["Google Sheets", "Excel"], key="table_source")
+        
+        if source == "Google Sheets":
+            gs_url = st.text_input("URL Google Sheets", placeholder="https://docs.google.com/spreadsheets/d/...", key="gs_url_input")
+            if st.button("📊 Загрузить из Google", use_container_width=True):
+                if gs_url:
+                    with st.spinner("Загрузка..."):
+                        df = st.session_state.table_manager.read_google_sheets(gs_url)
+                        if df is not None:
+                            table_id = f"gs_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                            st.session_state.current_df = df
+                            st.session_state.editing_table_id = table_id
+                            st.session_state.saved_tables[table_id] = df.copy()
+                            save_tables_auto(st.session_state.saved_tables)
+                            st.success(f"✅ Загружено: {df.shape}")
+                            st.rerun()
+        else:
+            uploaded = st.file_uploader("Excel файл", type=['xlsx', 'xls', 'csv'], key="excel_upload")
+            if uploaded:
+                with st.spinner("Чтение файла..."):
+                    try:
+                        if uploaded.name.endswith('.csv'):
+                            df = pd.read_csv(uploaded)
+                        else:
+                            df = st.session_state.table_manager.read_excel(uploaded)
+                        if df is not None:
+                            table_id = f"ex_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                            st.session_state.current_df = df
+                            st.session_state.editing_table_id = table_id
+                            st.session_state.saved_tables[table_id] = df.copy()
+                            save_tables_auto(st.session_state.saved_tables)
+                            st.success(f"✅ Загружено: {df.shape}")
+                            st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Ошибка чтения: {e}")
+    
+    with col2:
+        # 🆕 Если таблица выбрана - показываем редактор
+        if st.session_state.current_df is not None and st.session_state.editing_table_id:
+            render_table_editor(
+                st.session_state.current_df, 
+                st.session_state.editing_table_id, 
+                api_key
+            )
+        else:
+            st.info("💡 Загрузите таблицу слева или выберите из сохранённых выше")
+    
+    # 🆕 Быстрые действия с текущей таблицей
+    if st.session_state.current_df is not None:
+        st.markdown("---")
+        st.markdown("### ⚡ Быстрые действия")
+        
+        col_a, col_b, col_c, col_d = st.columns(4)
+        with col_a:
+            if st.button("🧹 Удалить дубликаты", use_container_width=True):
+                st.session_state.current_df = st.session_state.current_df.drop_duplicates()
+                st.session_state.saved_tables[st.session_state.editing_table_id] = st.session_state.current_df.copy()
+                save_tables_auto(st.session_state.saved_tables)
+                st.success("✅ Дубликаты удалены")
+                st.rerun()
+        with col_b:
+            if st.button("🗑️ Удалить пустые", use_container_width=True):
+                st.session_state.current_df = st.session_state.current_df.dropna(how='all')
+                st.session_state.saved_tables[st.session_state.editing_table_id] = st.session_state.current_df.copy()
+                save_tables_auto(st.session_state.saved_tables)
+                st.success("✅ Пустые строки удалены")
+                st.rerun()
+        with col_c:
+            if st.button("📈 Статистика", use_container_width=True):
+                with st.expander("📊 Статистика данных", expanded=True):
+                    st.write(st.session_state.current_df.describe(include='all'))
+        with col_d:
+            if st.button("🔄 Сбросить", use_container_width=True):
+                if st.session_state.editing_table_id in st.session_state.saved_tables:
+                    st.session_state.current_df = st.session_state.saved_tables[st.session_state.editing_table_id].copy()
+                    st.success("🔄 Данные сброшены к сохранённой версии")
+                    st.rerun()
 
 
 def render_help_tab():
@@ -3259,6 +3607,37 @@ def render_help_tab():
     2. **Вставьте ключ** в боковой панели
     3. **Выберите или создайте агента**
     4. **Начните диалог** или постройте workflow
+    
+    ---
+    
+    ## 💬 Новый чат-интерфейс
+    
+    🆕 Обновления диалога:
+    - ✅ Сообщения отображаются сверху вниз как в мессенджерах
+    - ✅ Поле ввода автоматически очищается после отправки
+    - ✅ Цветовое оформление: ваши сообщения справа (фиолетовые), ответы агента слева
+    - ✅ Поддержка голосового ввода и озвучки ответов
+    
+    ---
+    
+    ## 🗂 Редактирование таблиц
+    
+    🆕 Новые возможности работы с таблицами:
+    - ✏️ **Полноценный редактор**: изменяйте данные прямо в интерфейсе
+    - 💾 **Автосохранение**: изменения сохраняются автоматически
+    - 🗑️ **Удаление**: удаляйте ненужные таблицы одним кликом
+    - 📥 **Экспорт**: скачивайте результаты в Excel
+    - 🤖 **ИИ-трансформация**: описывайте изменения на русском языке
+    
+    ### Примеры ИИ-команд для таблиц:
+    ```
+    • "Удали все пустые строки и столбцы"
+    • "Добавь столбец 'Итого' = Цена * Количество"
+    • "Отсортируй по дате убывания"
+    • "Сгруппируй по категории и посчитай сумму"
+    • "Замени все пропуски на 0"
+    • "Отфильтруй строки где Статус = 'Активен'"
+    ```
     
     ---
     
@@ -3321,7 +3700,7 @@ def render_help_tab():
     
     ---
     
-    *Workflow Builder Pro v9.0 • Монопоточная версия • © 2026*
+    *Workflow Builder Pro v9.1 • Монопоточная версия • © 2026*
     """)
 
 
