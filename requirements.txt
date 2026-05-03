@@ -1,30 +1,132 @@
 # ============================================================================
-# WORKFLOW BUILDER PRO v9.0 – ЗАВИСИМОСТИ
+# WORKFLOW BUILDER PRO v9.2 – ЗАВИСИМОСТИ
 # ============================================================================
 
-# === ОБЯЗАТЕЛЬНЫЕ ЗАВИСИМОСТИ ===
-streamlit>=1.32.0
+# === ОСНОВНЫЕ ЗАВИСИМОСТИ (ОБЯЗАТЕЛЬНЫЕ) ===
+streamlit>=1.28.0          # Веб-интерфейс приложения
+pandas>=2.0.0              # Работа с табличными данными
+openpyxl>=3.1.0            # Чтение/запись Excel файлов
+openai>=1.0.0              # Клиент для DeepSeek/OpenAI API
+plotly>=5.18.0             # Интерактивные графики и визуализация
+requests>=2.31.0           # HTTP-запросы к внешним сервисам
+Pillow>=10.0.0             # Обработка изображений (PIL)
+
+# === ОБРАБОТКА ИЗОБРАЖЕНИЙ ===
+rembg>=2.0.0               # Удаление фона с изображений (ИИ)
+numpy>=1.24.0              # Численные операции для обработки изображений
+
+# === ГОЛОСОВЫЕ ФУНКЦИИ (ОПЦИОНАЛЬНО) ===
+SpeechRecognition>=3.10.0  # Распознавание речи
+gTTS>=2.5.0                # Синтез речи (текст в аудио)
+pyaudio>=0.2.13            # Работа с аудиоустройствами (для записи голоса)
+
+# === ИНТЕГРАЦИЯ С GOOGLE (ОПЦИОНАЛЬНО) ===
+gspread>=5.12.0            # Работа с Google Sheets API
+google-auth>=2.23.0        # Аутентификация Google
+google-auth-oauthlib>=1.1.0 # OAuth для Google сервисов
+
+# === ПРОДВИНУТАЯ ОБРАБОТКА ИЗОБРАЖЕНИЙ (ОПЦИОНАЛЬНО) ===
+# opencv-python-headless>=4.8.0  # Компьютерное зрение (без GUI)
+# torch>=2.0.0                    # PyTorch для продвинутых моделей ИИ
+# torchvision>=0.15.0             # Модели и утилиты для компьютерного зрения
+
+# === ДОПОЛНИТЕЛЬНЫЕ УТИЛИТЫ ===
+python-dotenv>=1.0.0       # Управление переменными окружения (.env файлы)
+tqdm>=4.66.0               # Индикаторы прогресса для массовых операций
+
+# === ДЛЯ РАЗРАБОТКИ И ТЕСТИРОВАНИЯ (ОПЦИОНАЛЬНО) ===
+# pytest>=7.4.0            # Тестирование
+# black>=23.0.0            # Форматирование кода
+# flake8>=6.1.0            # Линтинг кода
+# mypy>=1.5.0              # Проверка типов
+
+# ============================================================================
+# КОМАНДЫ УСТАНОВКИ
+# ============================================================================
+
+# Базовая установка (минимум для работы):
+pip install -r requirements.txt
+
+# Или по частям:
+pip install streamlit pandas openpyxl openai plotly requests Pillow rembg numpy
+
+# С голосовыми функциями:
+pip install SpeechRecognition gTTS pyaudio
+
+# С поддержкой Google Sheets:
+pip install gspread google-auth google-auth-oauthlib
+
+# Полная установка (все возможности):
+pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+# ============================================================================
+# ПРОВЕРКА УСТАНОВКИ
+# ============================================================================
+
+# Создайте файл check_install.py и запустите:
+"""
+import sys
+
+dependencies = [
+    ('streamlit', 'streamlit'),
+    ('pandas', 'pandas'),
+    ('openpyxl', 'openpyxl'),
+    ('openai', 'openai'),
+    ('plotly', 'plotly'),
+    ('requests', 'requests'),
+    ('Pillow', 'PIL'),
+    ('rembg', 'rembg'),
+    ('numpy', 'numpy'),
+]
+
+print("🔍 Проверка зависимостей...\n")
+all_ok = True
+
+for pkg_name, import_name in dependencies:
+    try:
+        __import__(import_name)
+        print(f"✅ {pkg_name}")
+    except ImportError:
+        print(f"❌ {pkg_name} — НЕ УСТАНОВЛЕН")
+        all_ok = False
+
+print(f"\n{'✅ Все зависимости установлены!' if all_ok else '⚠️ Установите отсутствующие пакеты'}")
+"""
+
+# ============================================================================
+# ПРИМЕЧАНИЯ ПО УСТАНОВКЕ
+# ============================================================================
+
+# 1. PyAudio (для голосовых функций):
+#    • Windows: pip install pipwin && pipwin install pyaudio
+#    • Linux: sudo apt-get install portaudio19-dev && pip install pyaudio
+#    • macOS: brew install portaudio && pip install pyaudio
+
+# 2. rembg (удаление фона):
+#    • При первом запуске автоматически загрузит модель ~170MB
+#    • Для ускорения можно предварительно: python -m rembg download
+
+# 3. Google Sheets API:
+#    • Требуется создание сервиса в Google Cloud Console
+#    • Скачайте credentials.json и поместите в корень проекта
+
+# 4. PyTorch (опционально, для продвинутой обработки):
+#    • CPU версия: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#    • CUDA версия: https://pytorch.org/get-started/locally/
+
+# 5. Если возникают конфликты версий:
+#    pip install --upgrade pip
+#    pip install --force-reinstall -r requirements.txt
+
+# ============================================================================
+# МИНИМАЛЬНЫЙ НАБОР ДЛЯ БЫСТРОГО СТАРТА
+# ============================================================================
+# requirements-minimal.txt:
+"""
+streamlit>=1.28.0
 pandas>=2.0.0
-openpyxl>=3.1.0
-numpy>=1.24.0
-openai>=1.12.0
+openai>=1.0.0
 requests>=2.31.0
-plotly>=5.18.0
-gspread>=5.12.0
-google-auth>=2.23.0
-google-auth-oauthlib>=1.1.0
-google-auth-httplib2>=0.1.1
-python-dateutil>=2.8.2
-typing-extensions>=4.9.0
-python-dotenv>=1.0.0
-
-# === ОПЦИОНАЛЬНЫЕ: ГОЛОСОВЫЕ ФУНКЦИИ ===
-# Установите отдельно, если нужны: pip install -r requirements-voice.txt
-# SpeechRecognition>=3.10.0
-# gTTS>=2.5.0
-# pyaudio>=0.2.13; platform_system != "Windows"
-# pipwin>=0.5.2; platform_system == "Windows"
-
-# === ОПЦИОНАЛЬНЫЕ: РАСШИРЕННЫЙ EXCEL ===
-# xlrd>=2.0.1
-# xlsxwriter>=3.1.0
+Pillow>=10.0.0
+"""
+# Установка: pip install -r requirements-minimal.txt
