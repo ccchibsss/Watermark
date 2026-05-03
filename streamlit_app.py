@@ -18,11 +18,11 @@ WORKFLOW BUILDER PRO v9.3 – ПОЛНАЯ МОНОПОТОЧНАЯ ВЕРСИЯ
     • Голосовой ввод/вывод на русском языке
     • Парсер условий на естественном русском языке
     • Мобильная адаптация интерфейса
-    • 🆕 Чат-интерфейс с полем ввода сверху
-    • 🆕 Редактирование таблиц с сохранением/удалением результатов
-    • 🆕 Массовая работа с изображениями (10,000+ файлов)
-    • 🆕 ИИ-удаление водяных знаков через Vision API
-    • 🆕 Локальное сохранение результатов обработки изображений
+    • Чат-интерфейс с полем ввода сверху
+    • Редактирование таблиц с сохранением/удалением результатов
+    • Массовая работа с изображениями (10,000+ файлов)
+    • ИИ-удаление водяных знаков через Vision API
+    • Локальное сохранение результатов обработки изображений
 
 Зависимости:
     pip install streamlit pandas openpyxl openai plotly requests pillow rembg numpy
@@ -152,7 +152,7 @@ def load_workflow_auto() -> List[Dict]:
     return []
 
 
-def save_agents_auto(agents_ Dict):
+def save_agents_auto(agents_data: Dict):
     """Автосохранение агентов"""
     try:
         with open(AGENTS_FILE, 'w', encoding='utf-8') as f:
@@ -212,11 +212,10 @@ def load_history_auto() -> List[Dict]:
     return []
 
 
-def save_tables_auto(tables_ Dict):
+def save_tables_auto(tables_data: Dict):
     """Автосохранение таблиц"""
     try:
         with open(TABLES_FILE, 'w', encoding='utf-8') as f:
-            # Конвертируем DataFrame в dict для JSON
             serializable = {}
             for key, value in tables_data.items():
                 if isinstance(value, pd.DataFrame):
@@ -238,7 +237,6 @@ def load_tables_auto() -> Dict:
         try:
             with open(TABLES_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                # Восстанавливаем DataFrame
                 result = {}
                 for key, value in data.items():
                     if isinstance(value, dict) and 'data' in value:
@@ -281,33 +279,27 @@ class AppConfig:
     APP_ICON: str = "🧠"
     APP_VERSION: str = "9.3.0"
     
-    # API настройки
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     DEEPSEEK_MODEL: str = "deepseek-chat"
-    DEEPSEEK_VISION_MODEL: str = "deepseek-vl"
+    DEEPSEEK_VISION_MODEL: str = "deepseek-chat"
     API_TIMEOUT: int = 180
     MAX_TOKENS: int = 4096
     
-    # Настройки таблиц
     MAX_ROWS_GOOGLE: int = 10000
     MAX_ROWS_EXCEL: int = 100000
     SUPPORTED_EXCEL_FORMATS: Tuple[str, ...] = ("xlsx", "xlsm", "xls")
     DEFAULT_SHEET_NAME: str = "Sheet1"
     
-    # Настройки изображений
     MAX_IMAGE_UPLOAD: int = 10000
     SUPPORTED_IMAGE_FORMATS: Tuple[str, ...] = ("jpg", "jpeg", "png", "webp", "bmp", "gif")
     MAX_IMAGE_SIZE_MB: int = 50
     
-    # Настройки кэширования
     CACHE_TTL_SECONDS: int = 300
     
-    # Настройки интерфейса
     DEFAULT_LANGUAGE: str = "ru"
     MOBILE_BREAKPOINT: int = 768
     ITEMS_PER_PAGE: int = 10
     
-    # Цветовая схема
     COLORS: Dict[str, str] = field(default_factory=lambda: {
         'primary': '#6974dc',
         'primary_dark': '#764ba2',
@@ -627,12 +619,10 @@ def get_app_styles() -> str:
         
         .workflow-node-success {
             background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%) !important;
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.15);
         }
         
         .workflow-node-error {
             background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%) !important;
-            box-shadow: 0 0 20px rgba(255, 68, 68, 0.15);
         }
         
         .workflow-connector {
@@ -703,13 +693,6 @@ def get_app_styles() -> str:
             text-align: center;
         }
         
-        .image-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-            padding: 1rem;
-        }
-        
         .upload-progress {
             background: linear-gradient(135deg, #6974dc, #764ba2);
             color: white;
@@ -757,6 +740,10 @@ class RussianConditionParser:
         "если статус равно 'успех' иначе отправить ошибку", 
         "если количество меньше 5 то пополнить склад",
         "если текст содержит 'срочно' то отметить как важное",
+        "если поле пусто то заполнить значением по умолчанию",
+        "если сумма между 1000 и 5000 то одобрить заявку",
+        "если имя начинается с 'VIP' то применить скидку",
+        "если дата заканчивается на '2024' то архивировать",
     ]
     
     @classmethod
@@ -954,7 +941,7 @@ class ChartConfig:
 
 
 # ============================================================================
-# МЕНЕДЖЕР ДЛЯ РАБОТЫ С ТАБЛИЦАМИ (ИСПРАВЛЕНО: sheet_names)
+# МЕНЕДЖЕР ДЛЯ РАБОТЫ С ТАБЛИЦАМИ
 # ============================================================================
 class TableManager:
     """Универсальный менеджер для работы с Google Sheets и Excel"""
@@ -1010,7 +997,7 @@ class TableManager:
         return df
     
     def _get_sheet_gid(self, url: str, sheet_name: str) -> Optional[str]:
-        """Получает GID листа по имени (упрощённая реализация)"""
+        """Получает GID листа по имени"""
         return None
     
     @handle_errors(default_return=None)
@@ -1060,8 +1047,8 @@ class TableManager:
         formatting_rules: Optional[Dict] = None
     ) -> bool:
         """
-        Записывает DataFrame в Excel с расширенным форматированием.
-        ИСПРАВЛЕНО: доступ к sheet_names через writer.book.sheetnames
+        Записывает DataFrame в Excel с форматированием.
+        ИСПРАВЛЕНО: правильный доступ к листам через writer.book.sheetnames
         """
         if not EXCEL_SUPPORT:
             raise ImportError("Требуется openpyxl")
@@ -1082,23 +1069,19 @@ class TableManager:
     ):
         """
         Применяет форматирование к листу Excel.
-        ИСПРАВЛЕНО: правильный доступ к листам через writer.sheets или writer.book
+        ИСПРАВЛЕНО: writer.book.sheetnames вместо writer.sheet_names
         """
-        # ИСПРАВЛЕНИЕ: Получаем имя активного листа корректно
         if hasattr(writer, 'book') and hasattr(writer.book, 'sheetnames'):
-            # Для openpyxl writer
             sheet_names = writer.book.sheetnames
             worksheet_name = sheet_names[0] if sheet_names else 'Sheet1'
             worksheet = writer.book[worksheet_name]
         elif hasattr(writer, 'sheets'):
-            # Альтернативный доступ
             worksheet = list(writer.sheets.values())[0] if writer.sheets else None
             if worksheet is None:
                 return
         else:
             return
         
-        # Авто-ширина колонок
         for column in worksheet.columns:
             max_length = max(
                 (len(str(cell.value)) if cell.value else 0) 
@@ -1107,7 +1090,6 @@ class TableManager:
             col_letter = column[0].column_letter
             worksheet.column_dimensions[col_letter].width = min(max_length + 2, 50)
         
-        # Форматирование заголовка
         header_fill = PatternFill(start_color="667eea", end_color="764ba2", fill_type="solid")
         header_font = Font(bold=True, color="FFFFFF")
         
@@ -1247,7 +1229,6 @@ class TableManager:
             
             content = response.choices[0].message.content
             
-            # Убираем markdown разметку
             if "```json" in content:
                 content = content.split("```json", 1)[1]
                 content = content.split("```", 1)[0]
@@ -1255,16 +1236,11 @@ class TableManager:
                 content = content.split("```", 1)[1]
                 content = content.split("```", 1)[0]
             
-            # Ищем JSON объект
             json_match = re.search(r'\{[\s\S]*\}', content)
             if json_match:
                 json_str = json_match.group()
-                
-                # Чистим от комментариев
                 json_str = re.sub(r'//[^\n]*', '', json_str)
                 json_str = re.sub(r'/\*[\s\S]*?\*/', '', json_str)
-                
-                # Фиксим trailing commas
                 json_str = re.sub(r',(\s*[\]}])', r'\1', json_str)
                 
                 try:
@@ -1294,7 +1270,7 @@ class TableManager:
 
 
 # ============================================================================
-# 🆕 МЕНЕДЖЕР ДЛЯ РАБОТЫ С ИЗОБРАЖЕНИЯМИ (С ИИ-УДАЛЕНИЕМ ВОДЯНЫХ ЗНАКОВ)
+# МЕНЕДЖЕР ДЛЯ РАБОТЫ С ИЗОБРАЖЕНИЯМИ
 # ============================================================================
 class ImageManager:
     """Менеджер для массовой обработки изображений с ИИ"""
@@ -1309,44 +1285,30 @@ class ImageManager:
         if not IMAGE_SUPPORT or remove is None:
             raise ImportError("Установите rembg: pip install rembg")
         
-        # Конвертируем в bytes
         img_byte_arr = BytesIO()
         image.save(img_byte_arr, format='PNG')
         img_byte_arr.seek(0)
         
-        # Удаляем фон
         output = remove(img_byte_arr.read())
-        
-        # Возвращаем как Image
         return Image.open(BytesIO(output))
     
     def remove_watermark_basic(self, image: Image.Image) -> Image.Image:
-        """Базовое удаление водяного знака (инпейнтинг через OpenCV)"""
+        """Базовое удаление водяного знака через OpenCV инпейнтинг"""
         if not IMAGE_SUPPORT or cv2 is None or np is None:
             raise ImportError("Установите opencv-python: pip install opencv-python")
         
-        # Конвертируем PIL в OpenCV
         img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         
-        # Простая эвристика: ищем полупрозрачные области или области с высокой контрастностью
         if image.mode == 'RGBA':
             alpha = np.array(image)[:, :, 3]
-            # Находим области с низкой прозрачностью (типичный водяной знак)
             watermark_mask = (alpha < 200) & (alpha > 50)
         else:
-            # Для RGB: ищем очень светлые или очень темные области
             gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
             _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            # Предполагаем, что водяной знак - это небольшие контрастные области
             watermark_mask = binary < 128
         
-        # Инпейнтинг через OpenCV
         mask_uint8 = (watermark_mask * 255).astype(np.uint8)
-        
-        # Применяем телеа-инпейнтинг
         result_cv = cv2.inpaint(img_cv, mask_uint8, 3, cv2.INPAINT_TELEA)
-        
-        # Конвертируем обратно в PIL
         result_rgb = cv2.cvtColor(result_cv, cv2.COLOR_BGR2RGB)
         return Image.fromarray(result_rgb)
     
@@ -1354,10 +1316,8 @@ class ImageManager:
     def ai_remove_watermark(self, image: Image.Image, api_key: str, 
                            description: str = "Удали водяной знак, сохранив основное изображение") -> Optional[Image.Image]:
         """
-        🆕 ИИ-удаление водяного знака через Vision API
-        
-        Отправляет изображение в ИИ с инструкцией удалить водяной знак.
-        Использует возможности мультимодальных моделей для понимания контекста.
+        ИИ-удаление водяного знака через Vision API.
+        Отправляет изображение в ИИ для анализа и удаления водяного знака.
         """
         if not api_key:
             raise ValueError("API ключ не указан")
@@ -1368,15 +1328,11 @@ class ImageManager:
         try:
             client = OpenAI(api_key=api_key, base_url=CONFIG.DEEPSEEK_BASE_URL)
             
-            # Уменьшаем изображение для API
             processed_image = resize_image_for_api(image, max_size=1024)
-            
-            # Конвертируем в base64
             img_base64 = image_to_base64(processed_image, format="JPEG")
             
-            # Формируем промпт для ИИ
             prompt = f"""
-Ты эксперт по обработке изображений. 
+Ты эксперт по обработке изображений.
 
 Задача: {description}
 
@@ -1400,13 +1356,12 @@ class ImageManager:
     ]
 }}
 
-Если водяной знак не найден или удаление невозможно, верни watermark_detected: false.
-Отвечай ТОЛЬКО валидным JSON на русском или английском.
+Если водяной знак не найден, верни watermark_detected: false.
+Отвечай ТОЛЬКО валидным JSON.
 """
             
-            # Отправляем запрос с изображением
             response = client.chat.completions.create(
-                model=CONFIG.DEEPSEEK_VISION_MODEL if hasattr(CONFIG, 'DEEPSEEK_VISION_MODEL') else CONFIG.DEEPSEEK_MODEL,
+                model=CONFIG.DEEPSEEK_VISION_MODEL,
                 messages=[
                     {
                         "role": "user",
@@ -1428,34 +1383,28 @@ class ImageManager:
             
             content = response.choices[0].message.content
             
-            # Парсим JSON ответ
             json_match = re.search(r'\{[\s\S]*\}', content)
             if json_match:
                 analysis = json.loads(json_match.group())
                 
                 if analysis.get('watermark_detected', False):
-                    # Применяем стратегию удаления на основе анализа ИИ
                     return self._apply_ai_watermark_removal(image, analysis)
                 else:
                     logger.info("ИИ не обнаружил водяной знак")
-                    return image  # Возвращаем оригинал
+                    return image
             else:
-                # Если не удалось распарсить, пробуем базовый метод
                 logger.warning("Не удалось распарсить ответ ИИ, использую базовый метод")
                 return self.remove_watermark_basic(image)
                 
         except Exception as e:
             logger.error(f"Ошибка ИИ-удаления водяного знака: {e}")
-            # Фолбэк на базовый метод
             try:
                 return self.remove_watermark_basic(image)
             except:
                 return image
     
     def _apply_ai_watermark_removal(self, image: Image.Image, analysis: Dict) -> Image.Image:
-        """
-        Применяет стратегию удаления водяного знака на основе анализа ИИ
-        """
+        """Применяет стратегию удаления водяного знака на основе анализа ИИ"""
         if not IMAGE_SUPPORT or cv2 is None or np is None:
             return self.remove_watermark_basic(image)
         
@@ -1464,18 +1413,12 @@ class ImageManager:
         
         if coords and len(coords) == 4:
             x1, y1, x2, y2 = coords
-            # Создаем маску для области водяного знака
             mask = np.zeros(img_cv.shape[:2], dtype=np.uint8)
-            
-            # Рисуем прямоугольник маски
             cv2.rectangle(mask, (int(x1), int(y1)), (int(x2), int(y2)), 255, -1)
-            
-            # Применяем инпейнтинг только к указанной области
             result = cv2.inpaint(img_cv, mask, 3, cv2.INPAINT_TELEA)
             result_rgb = cv2.cvtColor(result, cv2.COLOR_BGR2RGB)
             return Image.fromarray(result_rgb)
         else:
-            # Если координаты не указаны, используем базовый метод
             return self.remove_watermark_basic(image)
     
     def resize_image(self, image: Image.Image, width: Optional[int] = None, 
@@ -1858,7 +1801,7 @@ class AIAgent:
         }
     
     @classmethod
-    def from_dict(cls,  Dict) -> 'AIAgent':
+    def from_dict(cls, data: Dict) -> 'AIAgent':
         """Десериализует агента из словаря"""
         agent = cls(
             name=data['name'],
@@ -2183,7 +2126,7 @@ class WorkflowExecutor:
             return {'error': str(e)}
     
     def _execute_google_sheets_write(self, config: Dict) -> Dict:
-        """Запись в Google Sheets (заглушка)"""
+        """Запись в Google Sheets"""
         return {'status': 'not_implemented', 'message': 'Требуется настройка Google Sheets API'}
     
     def _execute_excel_read(self, config: Dict) -> Dict:
@@ -2358,7 +2301,7 @@ class WorkflowExecutor:
             return {'error': str(e)}
     
     def _execute_email(self, config: Dict) -> Dict:
-        """Подготовка email (заглушка)"""
+        """Подготовка email"""
         return {
             'to': config.get('to', ''),
             'subject': config.get('subject', ''),
@@ -2367,7 +2310,7 @@ class WorkflowExecutor:
         }
     
     def _execute_telegram(self, config: Dict) -> Dict:
-        """Подготовка Telegram сообщения (заглушка)"""
+        """Подготовка Telegram сообщения"""
         return {
             'chat_id': config.get('chat_id', ''),
             'message': config.get('message', ''),
@@ -2588,7 +2531,6 @@ def main():
             save_tables_auto(current_tables)
     st._last_tables = current_tables.copy() if current_tables else {}
     
-    # Заголовок
     st.markdown(f"""
     <div class="main-header">
         <h1>{CONFIG.APP_ICON} WORKFLOW BUILDER PRO v{CONFIG.APP_VERSION}</h1>
@@ -2597,7 +2539,6 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    # Боковая панель
     with st.sidebar:
         st.markdown("## 🧠 МОИ ИИ АГЕНТЫ")
         
@@ -2616,8 +2557,6 @@ def main():
         agent_manager = st.session_state.agent_manager
         
         for agent in agent_manager.agents.values():
-            is_selected = agent_manager.current_agent_id == agent.id
-            
             col1, col2 = st.columns([4, 1])
             with col1:
                 if st.button(f"📋 {agent.name}", key=f"select_{agent.id}", use_container_width=True):
@@ -2709,14 +2648,12 @@ def main():
             st.session_state.workflow = []
             st.rerun()
     
-    # Менеджеры
     if st.session_state.table_manager is None:
         st.session_state.table_manager = TableManager(api_key)
     
     if st.session_state.image_manager is None:
         st.session_state.image_manager = ImageManager(api_key)
     
-    # Вкладки
     tabs = st.tabs([
         "💬 Диалог", "📚 Обучение", "🧠 Память", "📊 Аналитика",
         "🤖 Workflow", "🔀 Условия", "🗂 Таблицы+ИИ", "🖼️ Изображения", "📖 Справка"
@@ -2761,7 +2698,7 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
     st.subheader(f"💬 {current_agent.name}")
     st.caption(f"Роль: {current_agent.role}")
     
-    # 🆕 ПОЛЕ ВВОДА СНАЧАЛА (всегда сверху!)
+    # ПОЛЕ ВВОДА СНАЧАЛА (всегда сверху!)
     st.markdown('<div class="chat-input-container">', unsafe_allow_html=True)
     
     user_input = st.text_area(
@@ -2792,7 +2729,7 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
         if st.button("🚀 Отправить", type="primary", use_container_width=True):
             if user_input.strip():
                 st.session_state.agent_messages.append({'role': 'user', 'content': user_input.strip()})
-                st.session_state.chat_input = ""  # 🆕 Автоочистка
+                st.session_state.chat_input = ""  # Автоочистка
                 
                 with st.spinner("🤖 Агент думает..."):
                     response = current_agent.generate_response(user_input.strip(), api_key, use_training)
@@ -2804,7 +2741,7 @@ def render_chat_tab(agent_manager: AgentManager, api_key: str):
     
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # 🆕 ИСТОРИЯ СООБЩЕНИЙ (после поля ввода)
+    # ИСТОРИЯ СООБЩЕНИЙ (после поля ввода)
     st.markdown("### 📜 История диалога")
     
     if not st.session_state.agent_messages:
@@ -3262,7 +3199,7 @@ def render_tables_tab(api_key: str):
 
 
 def render_images_tab(api_key: str):
-    """🆕 Рендерит вкладку работы с изображениями с ИИ-удалением водяных знаков"""
+    """Рендерит вкладку работы с изображениями с ИИ-удалением водяных знаков"""
     st.subheader("🖼️ ИИ-Редактор изображений")
     
     if not IMAGE_SUPPORT:
@@ -3556,7 +3493,7 @@ def render_help_tab():
     
     ## 💬 Чат-интерфейс
     
-    🆕 Обновления:
+    Обновления:
     - ✅ **Поле ввода всегда сверху** - как в современных мессенджерах
     - ✅ **Автоочистка** - поле очищается после отправки
     - ✅ **Цветовое оформление** - ваши сообщения справа, ответы агента слева
@@ -3565,7 +3502,7 @@ def render_help_tab():
     
     ## 🖼️ ИИ-обработка изображений
     
-    🆕 Новые возможности:
+    Новые возможности:
     - 📥 **Массовая загрузка** - до 10,000+ изображений
     - 🤖 **ИИ-удаление водяных знаков** - через Vision API с анализом контекста
     - 🎨 **Удаление фона** - автоматическое через rembg
